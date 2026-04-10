@@ -16,7 +16,11 @@ const rawUploadInput = document.getElementById('rawUploadInput');
 const newCardBtn = document.getElementById('newCardBtn');
 
 const editForm = document.getElementById('editForm');
+const editPanelTitle = document.getElementById('editPanelTitle');
+const sourceCardBadge = document.getElementById('sourceCardBadge');
+const sourceCardLabel = document.getElementById('sourceCardLabel');
 const cardId = document.getElementById('cardId');
+const cardSourceId = document.getElementById('cardSourceId');
 const cardTitle = document.getElementById('cardTitle');
 const cardType = document.getElementById('cardType');
 const cardRelated = document.getElementById('cardRelated');
@@ -35,6 +39,7 @@ const typeFilter = document.getElementById('typeFilter');
 const resetFilterBtn = document.getElementById('resetFilterBtn');
 const cardsGrid = document.getElementById('cardsGrid');
 const cardCount = document.getElementById('cardCount');
+const editPanel = document.querySelector('.edit-panel');
 
 /* ── Tab Navigation ────────────────────────────────────────────────────── */
 tabBtns.forEach(btn => {
@@ -107,6 +112,7 @@ function selectRawCard(id) {
   if (!card) return;
 
   cardId.value = id;
+  cardSourceId.value = id;
   cardTitle.value = card.title;
 
   // Extract content from raw markdown (try to get the body after any headers)
@@ -119,7 +125,11 @@ function selectRawCard(id) {
   cardImage.value = '';
   imageFilename.textContent = '未選擇';
   imagePreview.hidden = true;
+  editPanelTitle.textContent = '編輯卡片';
+  sourceCardBadge.hidden = false;
+  sourceCardLabel.textContent = `${card.title} (${card.filename})`;
   hideMsg();
+  editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /* ── Edited Cards ──────────────────────────────────────────────────────── */
@@ -144,7 +154,7 @@ function renderEditedList() {
   editedCardList.innerHTML = allCards.map(card => `
     <li class="card-list-item${activeEditedId === card.id ? ' active' : ''}" data-id="${esc(card.id)}">
       <div class="item-title">${esc(card.title)}</div>
-      <div class="item-meta">${esc(card.type || '')} ${card.id}</div>
+      <div class="item-filename">${esc(card.type || '未分類')}${card.sourceId ? ' · 來自 ' + esc(card.sourceId) : ''}</div>
     </li>
   `).join('');
   editedCardList.querySelectorAll('.card-list-item').forEach(li => {
@@ -161,6 +171,7 @@ function selectEditedCard(id) {
   if (!card) return;
 
   cardId.value = card.id;
+  cardSourceId.value = card.sourceId || '';
   cardTitle.value = card.title;
   cardType.value = card.type || '';
   cardRelated.value = (card.related || []).join(', ');
@@ -175,7 +186,15 @@ function selectEditedCard(id) {
     imagePreview.hidden = true;
     imageFilename.textContent = '未選擇';
   }
+  editPanelTitle.textContent = '編輯卡片';
+  if (card.sourceId) {
+    sourceCardBadge.hidden = false;
+    sourceCardLabel.textContent = card.sourceId;
+  } else {
+    sourceCardBadge.hidden = true;
+  }
   hideMsg();
+  editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /* ── Raw Upload ────────────────────────────────────────────────────────── */
@@ -203,10 +222,15 @@ newCardBtn.addEventListener('click', () => {
   renderEditedList();
   editForm.reset();
   cardId.value = generateTimeId();
+  cardSourceId.value = '';
   cardImage.value = '';
   imageFilename.textContent = '未選擇';
   imagePreview.hidden = true;
+  editPanelTitle.textContent = '創建新卡片';
+  sourceCardBadge.hidden = true;
   hideMsg();
+  editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  cardTitle.focus();
 });
 
 /* ── Image Upload ──────────────────────────────────────────────────────── */
@@ -228,11 +252,15 @@ imageInput.addEventListener('change', () => {
 /* ── Edit Form ─────────────────────────────────────────────────────────── */
 clearFormBtn.addEventListener('click', () => {
   editForm.reset();
+  cardId.value = '';
+  cardSourceId.value = '';
   cardImage.value = '';
   imageFilename.textContent = '未選擇';
   imagePreview.hidden = true;
   activeRawId = null;
   activeEditedId = null;
+  editPanelTitle.textContent = '編輯卡片';
+  sourceCardBadge.hidden = true;
   renderRawList();
   renderEditedList();
   hideMsg();
@@ -248,6 +276,7 @@ editForm.addEventListener('submit', async e => {
     tags: cardTags.value.split(',').map(s => s.trim()).filter(Boolean),
     image: cardImage.value,
     content: cardContent.value.trim(),
+    sourceId: cardSourceId.value.trim(),
   };
   if (!payload.id || !payload.title) {
     showMsg('❌ ID 和標題為必填欄位', 'error');

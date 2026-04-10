@@ -138,6 +138,7 @@ app.get('/api/cards', readLimiter, (req, res) => {
 app.post('/api/cards', writeLimiter, (req, res) => {
   const { title, type, related, tags, image, content } = req.body;
   const id = sanitizeId(req.body.id);
+  const sourceId = req.body.sourceId ? sanitizeId(req.body.sourceId) : '';
   if (!id || !title) return res.status(400).json({ error: 'id and title are required' });
 
   const relatedList = parseListField(related);
@@ -151,6 +152,7 @@ app.post('/api/cards', writeLimiter, (req, res) => {
     `related: [${relatedList.join(', ')}]`,
     `tags: [${tagList.join(', ')}]`,
     `image: ${image || ''}`,
+    `sourceId: ${sourceId}`,
     '---',
     '',
     '## 內容',
@@ -168,7 +170,7 @@ app.post('/api/cards', writeLimiter, (req, res) => {
   // Update cards.json
   const cards = JSON.parse(fs.readFileSync(CARDS_JSON, 'utf-8'));
   const now = new Date().toISOString();
-  const cardData = { id, title, type: type || '', related: relatedList, tags: tagList, image: image || '', content: content || '', updatedAt: now };
+  const cardData = { id, title, type: type || '', related: relatedList, tags: tagList, image: image || '', sourceId, content: content || '', updatedAt: now };
   const idx = cards.findIndex(c => c.id === id);
   if (idx >= 0) {
     cards[idx] = { ...cards[idx], ...cardData };

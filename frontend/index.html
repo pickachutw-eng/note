@@ -35,6 +35,7 @@
           <ul id="rawCardList" class="card-list">
             <li class="empty-hint">載入中…</li>
           </ul>
+          <div class="panel-divider"></div>
           <div class="panel-section-header">
             <h2>已編輯過卡片列表</h2>
           </div>
@@ -45,8 +46,12 @@
 
         <!-- Right: Edit Form -->
         <main class="edit-panel">
-          <h2>編輯卡片</h2>
+          <h2 id="editPanelTitle">編輯卡片</h2>
+          <div id="sourceCardBadge" class="source-badge" hidden>
+            📎 原始卡片：<span id="sourceCardLabel"></span>
+          </div>
           <form id="editForm" class="edit-form">
+            <input type="hidden" id="cardSourceId" name="sourceId">
             <div class="form-row">
               <label>ID <span class="hint">（依時間自動生成）</span></label>
               <input type="text" id="cardId" name="id" placeholder="202604101437" readonly>

@@ -114,11 +114,17 @@ body {
 }
 .create-btn:hover { background: #5f3a85; }
 
+.panel-divider {
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  flex-shrink: 0;
+}
+
 .panel-section-header {
   padding: 10px 20px;
   background: #f0f0f0;
-  border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .panel-section-header h2 { font-size: 0.9rem; font-weight: 700; color: var(--text-muted); }
 
@@ -147,8 +153,20 @@ body {
   overflow-y: auto;
   background: var(--bg);
 }
-.edit-panel h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; color: var(--primary); }
+.edit-panel h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 12px; color: var(--primary); }
 
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ede7f6;
+  color: #5e35b1;
+  border: 1px solid #ce93d8;
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 0.8rem;
+  margin-bottom: 16px;
+}
 .edit-form { max-width: 680px; }
 
 .form-row { margin-bottom: 16px; }
