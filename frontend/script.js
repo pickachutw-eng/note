@@ -333,7 +333,7 @@ async function loadEditedCards() {
   try {
     allCards = [];
     const q = query(cardsRef, orderByChild("updatedAt"));
-    const snapshot = await withTimeout(get(q), 8000, '載入逾時');
+    const snapshot = await withTimeout(get(q), 8000, '載入資料庫逾時');
 
     if (snapshot.exists()) {
       snapshot.forEach((childSnap) => {
@@ -602,7 +602,7 @@ function getComparableTime(ts) {
 
   if (typeof ts === 'string') {
     const trimmed = ts.trim();
-    if (trimmed && /^-?\d+(\.\d+)?$/.test(trimmed)) {
+    if (trimmed && /^\d+(\.\d+)?$/.test(trimmed)) {
       const num = Number(trimmed);
       if (!Number.isNaN(num)) return num;
     }
@@ -647,16 +647,24 @@ function hideMsg() {
 
 function withTimeout(promise, ms, message) {
   return new Promise((resolve, reject) => {
+    let settled = false;
     const timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       reject(new Error(message));
     }, ms);
 
     promise.then(
       (value) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timeoutId);
         resolve(value);
       },
       (err) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timeoutId);
         reject(err);
       }
