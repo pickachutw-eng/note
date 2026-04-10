@@ -580,7 +580,7 @@ testConnectionBtn.addEventListener('click', async () => {
   const token = settingToken.value.trim() || ghToken();
   if (!token) { showSettingsMsg('❌ 請先輸入 Token', 'error'); return; }
 
-  showSettingsMsg('⏳ 測試連線中…', '');
+  showSettingsMsg('⏳ 測試連線中…', 'pending');
   try {
     const owner = settingOwner.value.trim() || ghOwner();
     const repo = settingRepo.value.trim() || ghRepo();
