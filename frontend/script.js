@@ -75,6 +75,7 @@ function bindEvents() {
   document.getElementById('rawUploadInput')?.addEventListener('change', handleRawUpload);
   document.getElementById('newCardBtn')?.addEventListener('click', prepareNewCardForm);
   document.getElementById('imageUploadBtn')?.addEventListener('click', () => document.getElementById('imageInput')?.click());
+  document.getElementById('clearImageBtn')?.addEventListener('click', handleClearImage);
   document.getElementById('imageInput')?.addEventListener('change', handleImageSelect);
   document.getElementById('clearFormBtn')?.addEventListener('click', clearForm);
   document.getElementById('resetFilterBtn')?.addEventListener('click', () => {
@@ -106,8 +107,9 @@ async function handleSaveCard(e) {
   }
 
   try {
-    console.log("Attempting to save to Firebase...", payload);
-    const targetRef = ref(db, 'cards/' + payload.id);
+    const path = 'cards/' + payload.id;
+    console.log(`Attempting to save to RTDB path: ${path}`, payload);
+    const targetRef = ref(db, path);
     await set(targetRef, payload);
     
     console.log("Save successful!");
@@ -118,6 +120,7 @@ async function handleSaveCard(e) {
     }
     activeEditedId = payload.id;
     await loadEditedCards();
+    renderCards(allCards);
     showMsg('✅ 已成功儲存到 Realtime Database', 'success');
   } catch (err) {
     console.error("Firebase Save Error:", err);
@@ -213,4 +216,5 @@ function esc(str) { return String(str || '').replace(/[&<>"']/g, m => ({'&':'&am
 function showMsg(t, c) { if(formMsg) { formMsg.textContent = t; formMsg.className = 'form-msg ' + c; } }
 function clearForm() { document.getElementById('editForm')?.reset(); cardId.value = generateTimeId(); imageFilename.textContent = '未選擇'; }
 function handleImageSelect(e) { const f = e.target.files[0]; if(f){ cardImage.value = f.name; imageFilename.textContent = f.name; } }
+function handleClearImage() { if (cardImage) cardImage.value = ''; if (imageFilename) imageFilename.textContent = '未選擇'; }
 function prepareNewCardForm() { activeRawId = null; activeEditedId = null; clearForm(); renderRawList(); renderEditedList(); }
