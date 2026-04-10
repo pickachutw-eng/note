@@ -14,7 +14,9 @@
       <nav class="main-nav">
         <button class="nav-btn active" data-tab="organize">整理卡片</button>
         <button class="nav-btn" data-tab="map">卡片地圖</button>
+        <button class="nav-btn" data-tab="settings">⚙️ 設定</button>
       </nav>
+      <div id="tokenStatus" class="token-status" title="GitHub Token 狀態">🔴 未連線</div>
     </header>
 
     <!-- ── Tab 1: 整理卡片 ── -->
@@ -113,6 +115,53 @@
         <span id="cardCount" class="card-count"></span>
       </div>
       <div class="cards-grid" id="cardsGrid"></div>
+    </section>
+
+    <!-- ── Tab 3: 設定 ── -->
+    <section id="tab-settings" class="tab-content">
+      <div class="settings-panel">
+        <h2>⚙️ GitHub 設定</h2>
+        <p class="settings-desc">
+          資料儲存於 GitHub Repository 的檔案中（<code>backend/cards/</code> 與 <code>backend/data/cards.json</code>）。<br>
+          請輸入 GitHub Personal Access Token（PAT）以啟用雲端讀寫功能。<br>
+          Token 僅存在此次 <strong>瀏覽器 Session</strong>，關閉瀏覽器即自動清除，不會寫入本機。
+        </p>
+
+        <div class="settings-section">
+          <h3>Repository 設定</h3>
+          <div class="form-row">
+            <label>Owner（使用者或組織名稱）</label>
+            <input type="text" id="settingOwner" placeholder="pickachutw-eng">
+          </div>
+          <div class="form-row">
+            <label>Repository 名稱</label>
+            <input type="text" id="settingRepo" placeholder="note">
+          </div>
+          <div class="form-row">
+            <label>Branch</label>
+            <input type="text" id="settingBranch" placeholder="main">
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Personal Access Token</h3>
+          <div class="form-row">
+            <label>GitHub PAT <span class="hint">（需要 Contents: Read &amp; Write 權限）</span></label>
+            <div class="token-input-row">
+              <input type="password" id="settingToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+              <button type="button" id="toggleTokenBtn" class="btn-secondary btn-icon" title="顯示/隱藏 Token">👁</button>
+            </div>
+            <p class="settings-hint">建議使用 Fine-grained PAT，只開放此 repo 的「Contents: Read and Write」權限。</p>
+          </div>
+        </div>
+
+        <div class="settings-actions">
+          <button type="button" id="saveSettingsBtn" class="btn-primary">💾 儲存設定</button>
+          <button type="button" id="testConnectionBtn" class="btn-secondary">🔗 測試連線</button>
+          <button type="button" id="clearTokenBtn" class="btn-secondary btn-danger">🗑 清除 Token</button>
+        </div>
+        <div id="settingsMsg" class="form-msg"></div>
+      </div>
     </section>
   </div>
   <script src="script.js"></script>

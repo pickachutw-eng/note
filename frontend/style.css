@@ -208,6 +208,7 @@ body {
 .form-msg { margin-top: 12px; padding: 10px 14px; border-radius: var(--radius); font-size: 0.9rem; display: none; }
 .form-msg.success { display: block; background: #e8f5e9; color: #2e7d32; }
 .form-msg.error { display: block; background: #ffebee; color: #c62828; }
+.form-msg.pending { display: block; background: #fff8e1; color: #f57f17; }
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */
 .btn-primary {
@@ -299,4 +300,112 @@ body {
   .cards-grid { grid-template-columns: 1fr; padding: 20px; }
   .map-controls { padding: 16px 20px; }
   .edit-panel { padding: 20px; }
+}
+
+/* ── Token Status (Header) ──────────────────────────────────────────────── */
+.token-status {
+  margin-left: auto;
+  font-size: 0.8rem;
+  background: rgba(0,0,0,0.2);
+  padding: 4px 12px;
+  border-radius: 12px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* ── Settings Tab ───────────────────────────────────────────────────────── */
+#tab-settings { overflow-y: auto; }
+
+.settings-panel {
+  max-width: 640px;
+  margin: 32px auto;
+  padding: 0 24px 48px;
+}
+
+.settings-panel > h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 12px;
+}
+
+.settings-desc {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: 28px;
+  padding: 14px 18px;
+  background: #f0f4ff;
+  border-left: 4px solid var(--primary);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.settings-desc code {
+  background: rgba(102,126,234,0.12);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.settings-section {
+  margin-bottom: 28px;
+}
+
+.settings-section h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #555;
+  margin-bottom: 14px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--border);
+}
+
+.token-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.token-input-row input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  background: var(--surface);
+  font-family: monospace;
+}
+
+.token-input-row input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+}
+
+.btn-icon {
+  padding: 10px 12px !important;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.settings-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.btn-danger {
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
+
+.btn-danger:hover {
+  background: #fff5f5 !important;
 }
