@@ -40,6 +40,7 @@ let allCards = [];   // Firebase 已編輯卡片
 let rawCards = [];   // 本機暫存原始卡片
 let activeRawId = null;
 let activeEditedId = null;
+let lastLoadError = '';
 
 // ── DOM refs ─────────────────────────────────────────────────────────
 const tabBtns = document.querySelectorAll('.nav-btn');
@@ -84,6 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await signInAnonymously(auth);
   } catch (authErr) {
     console.error('匿名登入失敗', authErr);
+    showMsg(`❌ 匿名登入失敗，可能無法儲存：${authErr.message}`, 'error');
   }
   await loadEditedCards();
 });
@@ -327,10 +329,11 @@ function selectRawCard(localId) {
 
 // ── Firebase Realtime Database Load Edited Cards ─────────────────────
 async function loadEditedCards() {
+  lastLoadError = '';
   try {
     allCards = [];
     const q = query(cardsRef, orderByChild("updatedAt"));
-    const snapshot = await get(q);
+    const snapshot = await withTimeout(get(q), 8000, '載入逾時');
 
     if (snapshot.exists()) {
       snapshot.forEach((childSnap) => {
@@ -347,12 +350,15 @@ async function loadEditedCards() {
     });
 
     renderEditedList();
+    return true;
   } catch (e) {
     console.error(e);
     allCards = [];
+    lastLoadError = e?.message || '未知錯誤';
     if (editedCardList) {
       editedCardList.innerHTML = '<li class="empty-hint">資料庫載入失敗</li>';
     }
+    return false;
   }
 }
 
@@ -496,7 +502,8 @@ async function handleSaveCard(e) {
   }
 
   try {
-    await set(ref(db, `cards/${payload.id}`), payload);
+    showMsg('⏳ 儲存中…', 'info');
+    await withTimeout(set(ref(db, `cards/${payload.id}`), payload), 8000, '儲存逾時');
 
     // 如果是從原始卡片編輯而來，儲存成功後移出原始列表
     if (activeRawId) {
@@ -506,9 +513,13 @@ async function handleSaveCard(e) {
     }
 
     activeEditedId = payload.id;
-    await loadEditedCards();
+    const reloadOk = await loadEditedCards();
 
-    showMsg('✅ 已成功儲存到 Database', 'success');
+    if (reloadOk) {
+      showMsg('✅ 已成功儲存到 Database', 'success');
+    } else {
+      showMsg(`✅ 已成功儲存到 Database，但重新載入失敗：${lastLoadError}`, 'error');
+    }
   } catch (err) {
     console.error(err);
     showMsg(`❌ 儲存到 Database 失敗：${err.message}`, 'error');
@@ -629,4 +640,14 @@ function hideMsg() {
   if (!formMsg) return;
   formMsg.textContent = '';
   formMsg.className = 'form-msg';
+}
+
+function withTimeout(promise, ms, message) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(message));
+    }, ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
 }
