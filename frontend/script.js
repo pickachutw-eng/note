@@ -1,5 +1,17 @@
 'use strict';
 
+/* ── Storage Keys ──────────────────────────────────────────────────────── */
+const LS_RAW = 'carddb_raw';
+const LS_PROCESSED = 'carddb_processed';
+
+/* ── Storage helpers ───────────────────────────────────────────────────── */
+function storageGet(key) {
+  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (_) { return []; }
+}
+function storageSave(key, data) {
+  localStorage.setItem(key, JSON.stringify(data));
+}
+
 /* ── State ────────────────────────────────────────────────────────────── */
 let allCards = [];
 let rawCards = [];
@@ -48,7 +60,7 @@ tabBtns.forEach(btn => {
     tabContents.forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'map') loadProcessedCards();
+    if (btn.dataset.tab === 'map') refreshMapTab();
   });
 });
 
@@ -65,25 +77,21 @@ function generateTimeId() {
   const d = String(now.getDate()).padStart(2, '0');
   const h = String(now.getHours()).padStart(2, '0');
   const mi = String(now.getMinutes()).padStart(2, '0');
-  return `${y}${mo}${d}${h}${mi}`;
+  const s = String(now.getSeconds()).padStart(2, '0');
+  return `${y}${mo}${d}${h}${mi}${s}`;
 }
 
 /* ── Load Both Lists ───────────────────────────────────────────────────── */
-async function loadBothLists() {
-  await Promise.all([loadRawCards(), loadEditedCards()]);
+function loadBothLists() {
+  loadRawCards();
+  loadEditedCards();
 }
 
-/* ── Raw Cards ─────────────────────────────────────────────────────────── */
-async function loadRawCards() {
-  try {
-    const res = await fetch('/api/raw-cards');
-    if (!res.ok) throw new Error('Failed to load raw cards');
-    rawCards = await res.json();
-  } catch (e) {
-    rawCards = [];
-    rawCardList.innerHTML = '<li class="empty-hint">載入原始卡片失敗，請重新整理頁面</li>';
-    return;
-  }
+/* ── Raw Cards (localStorage) ──────────────────────────────────────────── */
+function loadRawCards() {
+  const processed = storageGet(LS_PROCESSED);
+  const editedIds = new Set(processed.map(c => c.id));
+  rawCards = storageGet(LS_RAW).filter(c => !editedIds.has(c.id));
   renderRawList();
 }
 
@@ -127,22 +135,14 @@ function selectRawCard(id) {
   imagePreview.hidden = true;
   editPanelTitle.textContent = '編輯卡片';
   sourceCardBadge.hidden = false;
-  sourceCardLabel.textContent = `${card.title} (${card.filename})`;
+  sourceCardLabel.textContent = card.title + ' (' + card.filename + ')';
   hideMsg();
   editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/* ── Edited Cards ──────────────────────────────────────────────────────── */
-async function loadEditedCards() {
-  try {
-    const res = await fetch('/api/cards');
-    if (!res.ok) throw new Error('Failed to load edited cards');
-    allCards = await res.json();
-  } catch (e) {
-    allCards = [];
-    editedCardList.innerHTML = '<li class="empty-hint">載入已編輯卡片失敗，請重新整理頁面</li>';
-    return;
-  }
+/* ── Edited Cards (localStorage) ──────────────────────────────────────── */
+function loadEditedCards() {
+  allCards = storageGet(LS_PROCESSED);
   renderEditedList();
 }
 
@@ -154,7 +154,7 @@ function renderEditedList() {
   editedCardList.innerHTML = allCards.map(card => `
     <li class="card-list-item${activeEditedId === card.id ? ' active' : ''}" data-id="${esc(card.id)}">
       <div class="item-title">${esc(card.title)}</div>
-      <div class="item-filename">${esc(card.type || '未分類')}${card.sourceId ? ' · 來自 ' + esc(card.sourceId) : ''}</div>
+      <div class="item-filename">${esc(card.type || '未分類')}${card.sourceId ? ` · 來自 ${esc(card.sourceId)}` : ''}</div>
     </li>
   `).join('');
   editedCardList.querySelectorAll('.card-list-item').forEach(li => {
@@ -197,21 +197,40 @@ function selectEditedCard(id) {
   editPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/* ── Raw Upload ────────────────────────────────────────────────────────── */
-rawUploadInput.addEventListener('change', async () => {
+/* ── Raw Upload (FileReader to localStorage) ───────────────────────────── */
+rawUploadInput.addEventListener('change', () => {
   const files = Array.from(rawUploadInput.files);
   if (!files.length) return;
-  for (const file of files) {
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      await fetch('/api/raw-cards/upload', { method: 'POST', body: formData });
-    } catch (e) {
-      // ignore individual failures
+  let pending = files.length;
+  const existing = storageGet(LS_RAW);
+
+  files.forEach(file => {
+    if (!file.name.toLowerCase().endsWith('.md')) {
+      pending--;
+      if (!pending) finish();
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = e => {
+      const content = e.target.result;
+      const id = file.name.replace(/\.md$/i, '');
+      const firstLine = content.split('\n').find(l => l.trim().startsWith('# '));
+      const title = firstLine ? firstLine.replace(/^# /, '').trim() : id;
+      const idx = existing.findIndex(c => c.id === id);
+      const card = { id, filename: file.name, title, content };
+      if (idx >= 0) existing[idx] = card; else existing.push(card);
+      pending--;
+      if (!pending) finish();
+    };
+    reader.onerror = () => { pending--; if (!pending) finish(); };
+    reader.readAsText(file);
+  });
+
+  function finish() {
+    storageSave(LS_RAW, existing);
+    rawUploadInput.value = '';
+    loadBothLists();
   }
-  rawUploadInput.value = '';
-  await loadRawCards();
 });
 
 /* ── New Card Button ───────────────────────────────────────────────────── */
@@ -265,7 +284,7 @@ clearFormBtn.addEventListener('click', () => {
   hideMsg();
 });
 
-editForm.addEventListener('submit', async e => {
+editForm.addEventListener('submit', e => {
   e.preventDefault();
   const payload = {
     id: cardId.value.trim(),
@@ -282,30 +301,28 @@ editForm.addEventListener('submit', async e => {
     return;
   }
   try {
-    const res = await fetch('/api/cards', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error('Server error');
+    const now = new Date().toISOString();
+    const cards = storageGet(LS_PROCESSED);
+    const idx = cards.findIndex(c => c.id === payload.id);
+    if (idx >= 0) {
+      cards[idx] = { ...cards[idx], ...payload, updatedAt: now };
+    } else {
+      cards.push({ ...payload, createdAt: now, updatedAt: now });
+    }
+    storageSave(LS_PROCESSED, cards);
     showMsg('✅ 卡片已儲存！', 'success');
     activeEditedId = payload.id;
     activeRawId = null;
-    await loadBothLists();
+    loadBothLists();
   } catch (err) {
     showMsg('❌ 儲存失敗', 'error');
   }
 });
 
 /* ── Card Map ──────────────────────────────────────────────────────────── */
-async function loadProcessedCards() {
-  try {
-    const res = await fetch('/api/cards');
-    allCards = await res.json();
-    renderCards(allCards);
-  } catch (e) {
-    cardsGrid.innerHTML = '<div class="no-results">載入失敗</div>';
-  }
+function refreshMapTab() {
+  allCards = storageGet(LS_PROCESSED);
+  renderCards(allCards);
 }
 
 function renderCards(cards) {
