@@ -8,13 +8,14 @@ import {
 
 // 請在此處貼上你在 Firebase Console 取得的設定
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "...",
-  appId: "..."
-};
+    apiKey: "AIzaSyAWBPlP6kJdZsZ2fiOZuycYnTcNY2Xasys",
+    authDomain: "notes-97961.firebaseapp.com",
+    databaseURL: "https://notes-97961-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "notes-97961",
+    storageBucket: "notes-97961.firebasestorage.app",
+    messagingSenderId: "953339062268",
+    appId: "1:953339062268:web:d5c3f1ce74a814098f7479"
+  };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
