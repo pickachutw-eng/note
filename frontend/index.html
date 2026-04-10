@@ -8,7 +8,6 @@
 </head>
 <body>
   <div class="app">
-    <!-- Main Navigation -->
     <header class="main-header">
       <h1>🎴 卡片資料庫</h1>
       <nav class="main-nav">
@@ -17,17 +16,15 @@
       </nav>
     </header>
 
-    <!-- ── Tab 1: 整理卡片 ── -->
     <section id="tab-organize" class="tab-content active">
       <div class="organize-layout">
-        <!-- Left: Raw Card List -->
         <aside class="raw-panel">
           <div class="panel-header">
             <h2>原始卡片列表</h2>
             <div class="panel-actions">
               <label class="upload-btn" title="上傳 MD 檔">
                 ＋ 上傳
-                <input type="file" id="rawUploadInput" accept=".md" multiple hidden>
+                <input type="file" id="rawUploadInput" accept=".md,text/markdown" multiple hidden>
               </label>
               <button type="button" id="newCardBtn" class="create-btn">✦ 創建新卡片</button>
             </div>
@@ -35,6 +32,7 @@
           <ul id="rawCardList" class="card-list">
             <li class="empty-hint">載入中…</li>
           </ul>
+
           <div class="panel-section-header">
             <h2>已編輯過卡片列表</h2>
           </div>
@@ -43,7 +41,6 @@
           </ul>
         </aside>
 
-        <!-- Right: Edit Form -->
         <main class="edit-panel">
           <h2>編輯卡片</h2>
           <form id="editForm" class="edit-form">
@@ -76,9 +73,11 @@
               <div class="image-upload-area">
                 <input type="file" id="imageInput" accept="image/*" hidden>
                 <button type="button" id="imageUploadBtn" class="btn-secondary">選擇圖片</button>
+                <button type="button" id="clearImageBtn" class="btn-secondary">清除圖片</button>
                 <span id="imageFilename" class="image-filename">未選擇</span>
                 <input type="hidden" id="cardImage" name="image">
               </div>
+              <div class="hint">圖片不寫入 Firebase：只做本機預覽，儲存時只記錄檔名。</div>
               <img id="imagePreview" class="image-preview" src="" alt="" hidden>
             </div>
             <div class="form-row">
@@ -95,7 +94,6 @@
       </div>
     </section>
 
-    <!-- ── Tab 2: 卡片地圖 ── -->
     <section id="tab-map" class="tab-content">
       <div class="map-controls">
         <input type="text" id="searchInput" placeholder="🔍 搜尋卡片…">
@@ -110,6 +108,7 @@
       <div class="cards-grid" id="cardsGrid"></div>
     </section>
   </div>
+
   <script type="module" src="script.js"></script>
 </body>
 </html>
