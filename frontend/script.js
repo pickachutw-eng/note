@@ -3,15 +3,14 @@
 // ── Firebase 初始化 ──────────────────────────────────────────────────
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
 import {
-  getFirestore,
-  collection,
-  doc,
-  setDoc,
-  getDocs,
+  getDatabase,
+  ref,
+  set,
+  get,
   query,
-  orderBy,
+  orderByChild,
   serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
 import {
   getAuth,
   signInAnonymously
@@ -29,9 +28,9 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db = getDatabase(app);
 const auth = getAuth(app);
-const cardsCol = collection(db, "cards");
+const cardsRef = ref(db, "cards");
 
 // ── Local Storage Keys ───────────────────────────────────────────────
 const LOCAL_RAW_CARDS_KEY = 'rawCardsDrafts';
@@ -326,23 +325,19 @@ function selectRawCard(localId) {
   hideMsg();
 }
 
-// ── Firebase Load Edited Cards ───────────────────────────────────────
+// ── Firebase Realtime Database Load Edited Cards ─────────────────────
 async function loadEditedCards() {
   try {
-    let querySnapshot;
-
-    try {
-      const q = query(cardsCol, orderBy("updatedAt", "desc"));
-      querySnapshot = await getDocs(q);
-    } catch (orderErr) {
-      console.warn('orderBy(updatedAt) 失敗，改用基本查詢', orderErr);
-      querySnapshot = await getDocs(cardsCol);
-    }
-
     allCards = [];
-    querySnapshot.forEach((snap) => {
-      allCards.push(snap.data());
-    });
+    const q = query(cardsRef, orderByChild("updatedAt"));
+    const snapshot = await get(q);
+
+    if (snapshot.exists()) {
+      snapshot.forEach((childSnap) => {
+        const data = childSnap.val();
+        if (data) allCards.push(data);
+      });
+    }
 
     // 若沒有排序，就手動按 updatedAt 粗略排序
     allCards.sort((a, b) => {
@@ -356,7 +351,7 @@ async function loadEditedCards() {
     console.error(e);
     allCards = [];
     if (editedCardList) {
-      editedCardList.innerHTML = '<li class="empty-hint">Firebase 載入失敗</li>';
+      editedCardList.innerHTML = '<li class="empty-hint">資料庫載入失敗</li>';
     }
   }
 }
@@ -461,7 +456,7 @@ function handleImageSelect() {
   const file = imageInput?.files?.[0];
   if (!file) return;
 
-  // 只記錄檔名，不存圖片內容到 Firestore
+  // 只記錄檔名，不存圖片內容到 Database
   if (cardImage) cardImage.value = file.name;
   if (imageFilename) imageFilename.textContent = file.name;
 
@@ -501,7 +496,7 @@ async function handleSaveCard(e) {
   }
 
   try {
-    await setDoc(doc(db, "cards", payload.id), payload);
+    await set(ref(db, `cards/${payload.id}`), payload);
 
     // 如果是從原始卡片編輯而來，儲存成功後移出原始列表
     if (activeRawId) {
@@ -513,10 +508,10 @@ async function handleSaveCard(e) {
     activeEditedId = payload.id;
     await loadEditedCards();
 
-    showMsg('✅ 已成功儲存到 Firebase', 'success');
+    showMsg('✅ 已成功儲存到 Database', 'success');
   } catch (err) {
     console.error(err);
-    showMsg(`❌ 儲存到 Firebase 失敗：${err.message}`, 'error');
+    showMsg(`❌ 儲存到 Database 失敗：${err.message}`, 'error');
   }
 }
 
@@ -590,12 +585,21 @@ function normalizeType(type) {
 function getComparableTime(ts) {
   if (!ts) return 0;
 
-  // Firestore Timestamp
+  if (typeof ts === 'number') {
+    return ts;
+  }
+
+  if (typeof ts === 'string') {
+    const num = Number(ts);
+    if (!Number.isNaN(num)) return num;
+  }
+
+  // Firestore Timestamp (compat)
   if (typeof ts.toMillis === 'function') {
     return ts.toMillis();
   }
 
-  // Firestore plain object {seconds, nanoseconds}
+  // Firestore plain object {seconds, nanoseconds} (compat)
   if (typeof ts.seconds === 'number') {
     return ts.seconds * 1000;
   }
