@@ -63,7 +63,11 @@ function loadRawCards() {
       renderRawList();
     })
     .catch(() => {
-      try { rawCards = JSON.parse(localStorage.getItem(LS_RAW) || '[]'); } catch (e) { rawCards = []; }
+      try {
+        rawCards = JSON.parse(localStorage.getItem(LS_RAW) || '[]');
+      } catch (e) {
+        rawCards = [];
+      }
       renderRawList();
     });
 }
@@ -114,9 +118,9 @@ rawUploadInput.addEventListener('change', () => {
   if (!files.length) return;
 
   // Try server upload; fall back to local FileReader on failure
-  const doLocalRead = () => {
-    let pending = files.length;
-    files.forEach(file => {
+  const doLocalRead = (filesToRead) => {
+    let pending = filesToRead.length;
+    filesToRead.forEach(file => {
       const reader = new FileReader();
       reader.onload = e => {
         const content = e.target.result;
@@ -144,7 +148,7 @@ rawUploadInput.addEventListener('change', () => {
     fd.append('file', file);
     fetch('/api/raw-cards/upload', { method: 'POST', body: fd })
       .then(r => r.ok ? uploadNext(rest) : Promise.reject())
-      .catch(doLocalRead);
+      .catch(() => doLocalRead([file, ...rest]));
   };
 
   uploadNext(files);
@@ -223,7 +227,11 @@ function loadProcessedCards() {
       renderCards(allCards);
     })
     .catch(() => {
-      try { allCards = JSON.parse(localStorage.getItem(LS_CARDS) || '[]'); } catch (e) { allCards = []; }
+      try {
+        allCards = JSON.parse(localStorage.getItem(LS_CARDS) || '[]');
+      } catch (e) {
+        allCards = [];
+      }
       populateTypeFilter();
       renderCards(allCards);
     });
