@@ -12,6 +12,10 @@ import {
   orderBy,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+import {
+  getAuth,
+  signInAnonymously
+} from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
 
 // 請確認這裡是你的 Firebase 設定
 const firebaseConfig = {
@@ -26,6 +30,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 const cardsCol = collection(db, "cards");
 
 // ── Local Storage Keys ───────────────────────────────────────────────
@@ -76,6 +81,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   cardId.value = generateTimeId();
   loadRawCardsFromLocal();
   renderRawList();
+  try {
+    await signInAnonymously(auth);
+  } catch (authErr) {
+    console.error('匿名登入失敗', authErr);
+  }
   await loadEditedCards();
 });
 
@@ -109,6 +119,19 @@ function bindEvents() {
   if (imageUploadBtn) {
     imageUploadBtn.addEventListener('click', () => {
       if (imageInput) imageInput.click();
+    });
+  }
+
+  const clearImageBtn = document.getElementById('clearImageBtn');
+  if (clearImageBtn) {
+    clearImageBtn.addEventListener('click', () => {
+      if (cardImage) cardImage.value = '';
+      if (imageFilename) imageFilename.textContent = '未選擇';
+      if (imagePreview) {
+        imagePreview.src = '';
+        imagePreview.hidden = true;
+      }
+      if (imageInput) imageInput.value = '';
     });
   }
 
