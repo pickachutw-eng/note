@@ -55,12 +55,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ── Raw Cards ─────────────────────────────────────────────────────────── */
 function loadRawCards() {
-  try {
-    rawCards = JSON.parse(localStorage.getItem(LS_RAW) || '[]');
-  } catch (e) {
-    rawCards = [];
-  }
-  renderRawList();
+  fetch('/api/raw-cards')
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => {
+      rawCards = data;
+      localStorage.setItem(LS_RAW, JSON.stringify(rawCards));
+      renderRawList();
+    })
+    .catch(() => {
+      try { rawCards = JSON.parse(localStorage.getItem(LS_RAW) || '[]'); } catch (e) { rawCards = []; }
+      renderRawList();
+    });
 }
 
 function renderRawList() {
@@ -107,25 +112,42 @@ function selectRawCard(id) {
 rawUploadInput.addEventListener('change', () => {
   const files = Array.from(rawUploadInput.files);
   if (!files.length) return;
-  let pending = files.length;
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const content = e.target.result;
-      const titleMatch = content.match(/^#\s+(.+)/m);
-      const title = titleMatch ? titleMatch[1].trim() : file.name.replace(/\.md$/, '');
-      const id = file.name.replace(/\.md$/, '');
-      rawCards = rawCards.filter(c => c.id !== id);
-      rawCards.push({ id, title, filename: file.name, content });
-      pending--;
-      if (pending === 0) {
-        localStorage.setItem(LS_RAW, JSON.stringify(rawCards));
-        rawUploadInput.value = '';
-        renderRawList();
-      }
-    };
-    reader.readAsText(file);
-  });
+
+  // Try server upload; fall back to local FileReader on failure
+  const doLocalRead = () => {
+    let pending = files.length;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const content = e.target.result;
+        const titleMatch = content.match(/^#\s+(.+)/m);
+        const title = titleMatch ? titleMatch[1].trim() : file.name.replace(/\.md$/, '');
+        const id = file.name.replace(/\.md$/, '');
+        rawCards = rawCards.filter(c => c.id !== id);
+        rawCards.push({ id, title, filename: file.name, content });
+        pending--;
+        if (pending === 0) {
+          localStorage.setItem(LS_RAW, JSON.stringify(rawCards));
+          rawUploadInput.value = '';
+          renderRawList();
+        }
+      };
+      reader.readAsText(file);
+    });
+  };
+
+  // Multer accepts one file at a time; upload sequentially
+  const uploadNext = (remaining) => {
+    if (!remaining.length) { rawUploadInput.value = ''; loadRawCards(); return; }
+    const [file, ...rest] = remaining;
+    const fd = new FormData();
+    fd.append('file', file);
+    fetch('/api/raw-cards/upload', { method: 'POST', body: fd })
+      .then(r => r.ok ? uploadNext(rest) : Promise.reject())
+      .catch(doLocalRead);
+  };
+
+  uploadNext(files);
 });
 
 /* ── Image Upload ──────────────────────────────────────────────────────── */
@@ -167,26 +189,44 @@ editForm.addEventListener('submit', e => {
     front: cardFront.value.trim(),
     back: cardBack.value.trim(),
   };
-  try {
-    let cards = JSON.parse(localStorage.getItem(LS_CARDS) || '[]');
-    cards = cards.filter(c => c.id !== payload.id);
-    cards.push(payload);
-    localStorage.setItem(LS_CARDS, JSON.stringify(cards));
-    showMsg('✅ 卡片已儲存！', 'success');
-  } catch (err) {
-    showMsg('❌ 儲存失敗', 'error');
-  }
+
+  const saveLocally = () => {
+    try {
+      let cards = JSON.parse(localStorage.getItem(LS_CARDS) || '[]');
+      cards = cards.filter(c => c.id !== payload.id);
+      cards.push(payload);
+      localStorage.setItem(LS_CARDS, JSON.stringify(cards));
+      showMsg('✅ 卡片已儲存！', 'success');
+    } catch (err) {
+      showMsg('❌ 儲存失敗', 'error');
+    }
+  };
+
+  fetch('/api/cards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(() => showMsg('✅ 卡片已儲存！', 'success'))
+    .catch(saveLocally);
 });
 
 /* ── Card Map ──────────────────────────────────────────────────────────── */
 function loadProcessedCards() {
-  try {
-    allCards = JSON.parse(localStorage.getItem(LS_CARDS) || '[]');
-    populateTypeFilter();
-    renderCards(allCards);
-  } catch (e) {
-    cardsGrid.innerHTML = '<div class="no-results">載入失敗</div>';
-  }
+  fetch('/api/cards')
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => {
+      allCards = data;
+      localStorage.setItem(LS_CARDS, JSON.stringify(allCards));
+      populateTypeFilter();
+      renderCards(allCards);
+    })
+    .catch(() => {
+      try { allCards = JSON.parse(localStorage.getItem(LS_CARDS) || '[]'); } catch (e) { allCards = []; }
+      populateTypeFilter();
+      renderCards(allCards);
+    });
 }
 
 function populateTypeFilter() {
