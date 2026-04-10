@@ -94,9 +94,14 @@ const readLimiter = rateLimit({ windowMs: 60 * 1000, max: 200, standardHeaders: 
 
 // List raw cards (cards folder), excluding those already edited (in cards.json)
 app.get('/api/raw-cards', readLimiter, (req, res) => {
-  const editedIds = new Set(
-    JSON.parse(fs.readFileSync(CARDS_JSON, 'utf-8')).map(c => c.id)
-  );
+  let editedIds = new Set();
+  try {
+    editedIds = new Set(
+      JSON.parse(fs.readFileSync(CARDS_JSON, 'utf-8')).map(c => c.id)
+    );
+  } catch (_) {
+    // cards.json missing or malformed — treat as empty
+  }
   const files = fs.readdirSync(RAW_DIR).filter(f => f.endsWith('.md'));
   const cards = files
     .map(file => {

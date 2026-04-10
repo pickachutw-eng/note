@@ -72,9 +72,12 @@ async function loadBothLists() {
 async function loadRawCards() {
   try {
     const res = await fetch('/api/raw-cards');
+    if (!res.ok) throw new Error('Failed to load raw cards');
     rawCards = await res.json();
   } catch (e) {
     rawCards = [];
+    rawCardList.innerHTML = '<li class="empty-hint">載入原始卡片失敗，請重新整理頁面</li>';
+    return;
   }
   renderRawList();
 }
@@ -123,9 +126,12 @@ function selectRawCard(id) {
 async function loadEditedCards() {
   try {
     const res = await fetch('/api/cards');
+    if (!res.ok) throw new Error('Failed to load edited cards');
     allCards = await res.json();
   } catch (e) {
     allCards = [];
+    editedCardList.innerHTML = '<li class="empty-hint">載入已編輯卡片失敗，請重新整理頁面</li>';
+    return;
   }
   renderEditedList();
 }
@@ -176,15 +182,14 @@ function selectEditedCard(id) {
 rawUploadInput.addEventListener('change', async () => {
   const files = Array.from(rawUploadInput.files);
   if (!files.length) return;
-  const formData = new FormData();
   for (const file of files) {
+    const formData = new FormData();
     formData.append('file', file);
     try {
       await fetch('/api/raw-cards/upload', { method: 'POST', body: formData });
     } catch (e) {
       // ignore individual failures
     }
-    formData.delete('file');
   }
   rawUploadInput.value = '';
   await loadRawCards();
