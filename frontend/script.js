@@ -602,7 +602,7 @@ function getComparableTime(ts) {
 
   if (typeof ts === 'string') {
     const trimmed = ts.trim();
-    if (trimmed && /^\d+(\.\d+)?$/.test(trimmed)) {
+    if (trimmed && NUMERIC_PATTERN.test(trimmed)) {
       const num = Number(trimmed);
       if (!Number.isNaN(num)) return num;
     }
@@ -629,6 +629,8 @@ const HTML_ESCAPE_MAP = {
   "'": '&#039;'
 };
 
+const NUMERIC_PATTERN = /^\d+(\.\d+)?$/;
+
 function esc(str) {
   return String(str || '').replace(/[&<>"']/g, m => HTML_ESCAPE_MAP[m]);
 }
@@ -651,7 +653,6 @@ function withTimeout(promise, ms, message) {
     const timeoutId = setTimeout(() => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeoutId);
       reject(new Error(message));
     }, ms);
 
