@@ -601,8 +601,11 @@ function getComparableTime(ts) {
   }
 
   if (typeof ts === 'string') {
-    const num = Number(ts);
-    if (!Number.isNaN(num)) return num;
+    const trimmed = ts.trim();
+    if (trimmed && /^-?\d+(\.\d+)?$/.test(trimmed)) {
+      const num = Number(trimmed);
+      if (!Number.isNaN(num)) return num;
+    }
   }
 
   // Firestore Timestamp (compat)
@@ -643,11 +646,20 @@ function hideMsg() {
 }
 
 function withTimeout(promise, ms, message) {
-  let timeoutId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
       reject(new Error(message));
     }, ms);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timeoutId);
+        reject(err);
+      }
+    );
   });
-  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
 }
