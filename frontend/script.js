@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await signInAnonymously(auth);
   } catch (authErr) {
     console.error('匿名登入失敗', authErr);
-    showMsg(`❌ 匿名登入失敗，可能無法儲存：${authErr.message}`, 'error');
+    showMsg(`❌ 匿名登入失敗，可能無法儲存。請確認網路或重新整理：${authErr.message}`, 'error');
   }
   await loadEditedCards();
 });
@@ -333,7 +333,7 @@ async function loadEditedCards() {
   try {
     allCards = [];
     const q = query(cardsRef, orderByChild("updatedAt"));
-    const snapshot = await withTimeout(get(q), 8000, '載入資料庫逾時');
+    const snapshot = await withTimeout(get(q), 8000, '載入資料庫逾時（8 秒）');
 
     if (snapshot.exists()) {
       snapshot.forEach((childSnap) => {
@@ -503,7 +503,7 @@ async function handleSaveCard(e) {
 
   try {
     showMsg('⏳ 儲存中…', 'info');
-    await withTimeout(set(ref(db, `cards/${payload.id}`), payload), 8000, '儲存逾時');
+    await withTimeout(set(ref(db, `cards/${payload.id}`), payload), 8000, '儲存逾時（8 秒）');
 
     // 如果是從原始卡片編輯而來，儲存成功後移出原始列表
     if (activeRawId) {
@@ -593,6 +593,8 @@ function normalizeType(type) {
   return '';
 }
 
+const NUMERIC_PATTERN = /^\d+(\.\d+)?$/;
+
 function getComparableTime(ts) {
   if (!ts) return 0;
 
@@ -628,8 +630,6 @@ const HTML_ESCAPE_MAP = {
   '"': '&quot;',
   "'": '&#039;'
 };
-
-const NUMERIC_PATTERN = /^\d+(\.\d+)?$/;
 
 function esc(str) {
   return String(str || '').replace(/[&<>"']/g, m => HTML_ESCAPE_MAP[m]);
