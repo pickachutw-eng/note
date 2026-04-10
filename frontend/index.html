@@ -56,9 +56,16 @@
               <label>分類</label>
               <select id="cardType" name="type">
                 <option value="">— 請選擇分類 —</option>
-                <option value="問題卡">問題卡</option>
-                <option value="地圖卡">地圖卡</option>
+                <option value="問題卡片">問題卡片</option>
+                <option value="概念卡片">概念卡片</option>
+                <option value="判斷卡片">判斷卡片</option>
+                <option value="資料卡片">資料卡片</option>
+                <option value="事件卡片">事件卡片</option>
               </select>
+            </div>
+            <div class="form-row" id="eventDateRow" style="display:none">
+              <label>事件日期</label>
+              <input type="date" id="cardEventDate" name="eventDate">
             </div>
             <div class="form-row">
               <label>關聯卡片 <span class="hint">（逗號分隔 ID）</span></label>
@@ -99,8 +106,11 @@
         <input type="text" id="searchInput" placeholder="🔍 搜尋卡片…">
         <select id="typeFilter">
           <option value="">全部類型</option>
-          <option value="問題卡">問題卡</option>
-          <option value="地圖卡">地圖卡</option>
+          <option value="問題卡片">問題卡片</option>
+          <option value="概念卡片">概念卡片</option>
+          <option value="判斷卡片">判斷卡片</option>
+          <option value="資料卡片">資料卡片</option>
+          <option value="事件卡片">事件卡片</option>
         </select>
         <button id="resetFilterBtn" class="btn-secondary">重置</button>
         <span id="cardCount" class="card-count"></span>
