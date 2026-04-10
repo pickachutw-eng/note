@@ -25,6 +25,7 @@ const db = getDatabase(app);
 const dbRef = ref(db);
 
 // ── 狀態管理 ────────────────────────────────────────────────────────────
+const EVENT_CARD_TYPE = '事件卡片';
 let allCards = [];   
 let rawCards = [];   
 let activeRawId = null;
@@ -34,6 +35,8 @@ let activeEditedId = null;
 const cardId = document.getElementById('cardId');
 const cardTitle = document.getElementById('cardTitle');
 const cardType = document.getElementById('cardType');
+const cardEventDate = document.getElementById('cardEventDate');
+const eventDateRow = document.getElementById('eventDateRow');
 const cardRelated = document.getElementById('cardRelated');
 const cardTags = document.getElementById('cardTags');
 const cardImage = document.getElementById('cardImage');
@@ -78,6 +81,9 @@ function bindEvents() {
   document.getElementById('clearImageBtn')?.addEventListener('click', handleClearImage);
   document.getElementById('imageInput')?.addEventListener('change', handleImageSelect);
   document.getElementById('clearFormBtn')?.addEventListener('click', clearForm);
+  cardType?.addEventListener('change', () => {
+    if (eventDateRow) eventDateRow.style.display = cardType.value === EVENT_CARD_TYPE ? '' : 'none';
+  });
   document.getElementById('resetFilterBtn')?.addEventListener('click', () => {
     document.getElementById('searchInput').value = '';
     document.getElementById('typeFilter').value = '';
@@ -94,6 +100,7 @@ async function handleSaveCard(e) {
     id: (cardId?.value || '').trim(),
     title: (cardTitle?.value || '').trim(),
     type: cardType?.value || '',
+    eventDate: cardType?.value === EVENT_CARD_TYPE ? (cardEventDate?.value || '') : '',
     related: (cardRelated?.value || '').split(',').map(s => s.trim()).filter(Boolean),
     tags: (cardTags?.value || '').split(',').map(s => s.trim()).filter(Boolean),
     image: (cardImage?.value || '').trim(),
@@ -183,6 +190,8 @@ function fillForm(card) {
   cardId.value = card.id || '';
   cardTitle.value = card.title || '';
   cardType.value = card.type || '';
+  if (eventDateRow) eventDateRow.style.display = card.type === EVENT_CARD_TYPE ? '' : 'none';
+  if (cardEventDate) cardEventDate.value = card.eventDate || '';
   cardRelated.value = (card.related || []).join(', ');
   cardTags.value = (card.tags || []).join(', ');
   cardImage.value = card.image || '';
@@ -214,7 +223,7 @@ function loadRawCardsFromLocal() { rawCards = JSON.parse(localStorage.getItem('r
 function removeRawCardFromLocal(id) { rawCards = rawCards.filter(c => c.localId !== id); localStorage.setItem('rawCardsDrafts', JSON.stringify(rawCards)); }
 function esc(str) { return String(str || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#039;"}[m])); }
 function showMsg(t, c) { if(formMsg) { formMsg.textContent = t; formMsg.className = 'form-msg ' + c; } }
-function clearForm() { document.getElementById('editForm')?.reset(); cardId.value = generateTimeId(); imageFilename.textContent = '未選擇'; }
+function clearForm() { document.getElementById('editForm')?.reset(); cardId.value = generateTimeId(); imageFilename.textContent = '未選擇'; if (eventDateRow) eventDateRow.style.display = 'none'; }
 function handleImageSelect(e) { const f = e.target.files[0]; if(f){ cardImage.value = f.name; imageFilename.textContent = f.name; } }
 function handleClearImage() { if (cardImage) cardImage.value = ''; if (imageFilename) imageFilename.textContent = '未選擇'; }
 function prepareNewCardForm() { activeRawId = null; activeEditedId = null; clearForm(); renderRawList(); renderEditedList(); }
