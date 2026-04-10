@@ -4,16 +4,16 @@
 let allCards = [];
 let rawCards = [];
 let activeRawId = null;
-
-const LS_CARDS = 'flashcard_cards';
-const LS_RAW   = 'flashcard_raw';
+let activeEditedId = null;
 
 /* ── DOM refs ──────────────────────────────────────────────────────────── */
 const tabBtns = document.querySelectorAll('.nav-btn');
 const tabContents = document.querySelectorAll('.tab-content');
 
 const rawCardList = document.getElementById('rawCardList');
+const editedCardList = document.getElementById('editedCardList');
 const rawUploadInput = document.getElementById('rawUploadInput');
+const newCardBtn = document.getElementById('newCardBtn');
 
 const editForm = document.getElementById('editForm');
 const cardId = document.getElementById('cardId');
@@ -22,8 +22,7 @@ const cardType = document.getElementById('cardType');
 const cardRelated = document.getElementById('cardRelated');
 const cardTags = document.getElementById('cardTags');
 const cardImage = document.getElementById('cardImage');
-const cardFront = document.getElementById('cardFront');
-const cardBack = document.getElementById('cardBack');
+const cardContent = document.getElementById('cardContent');
 const imageInput = document.getElementById('imageInput');
 const imageUploadBtn = document.getElementById('imageUploadBtn');
 const imageFilename = document.getElementById('imageFilename');
@@ -50,13 +49,30 @@ tabBtns.forEach(btn => {
 
 /* ── Init ──────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
-  loadRawCards();
+  loadBothLists();
 });
 
+/* ── ID Generation ─────────────────────────────────────────────────────── */
+function generateTimeId() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const h = String(now.getHours()).padStart(2, '0');
+  const mi = String(now.getMinutes()).padStart(2, '0');
+  return `${y}${mo}${d}${h}${mi}`;
+}
+
+/* ── Load Both Lists ───────────────────────────────────────────────────── */
+async function loadBothLists() {
+  await Promise.all([loadRawCards(), loadEditedCards()]);
+}
+
 /* ── Raw Cards ─────────────────────────────────────────────────────────── */
-function loadRawCards() {
+async function loadRawCards() {
   try {
-    rawCards = JSON.parse(localStorage.getItem(LS_RAW) || '[]');
+    const res = await fetch('/api/raw-cards');
+    rawCards = await res.json();
   } catch (e) {
     rawCards = [];
   }
@@ -81,51 +97,111 @@ function renderRawList() {
 
 function selectRawCard(id) {
   activeRawId = id;
+  activeEditedId = null;
   renderRawList();
+  renderEditedList();
   const card = rawCards.find(c => c.id === id);
   if (!card) return;
 
-  // Auto-fill form from raw card content
-  cardId.value = id;  // id is the filename without the .md extension
+  cardId.value = id;
   cardTitle.value = card.title;
 
-  // Try to extract front/back sections from raw markdown
+  // Extract content from raw markdown (try to get the body after any headers)
   const content = card.content || '';
-  const frontMatch = content.match(/##\s*(正面|Front)[^\n]*\n([\s\S]*?)(?=##|$)/i);
-  const backMatch = content.match(/##\s*(反面|Back)[^\n]*\n([\s\S]*?)(?=##|$)/i);
-  const tagsMatch = content.match(/##\s*(標籤|Tags)[^\n]*\n([\s\S]*?)(?=##|$)/i);
-
-  cardFront.value = frontMatch ? frontMatch[2].trim() : content;
-  cardBack.value = backMatch ? backMatch[2].trim() : '';
-  cardTags.value = tagsMatch ? tagsMatch[2].trim() : '';
+  const contentMatch = content.match(/##\s*(?:內容|Content)[^\n]*\n([\s\S]*?)(?=##|$)/i);
+  cardContent.value = contentMatch ? contentMatch[1].trim() : content.replace(/^#[^\n]*\n/, '').trim();
   cardType.value = '';
   cardRelated.value = '';
+  cardTags.value = '';
+  cardImage.value = '';
+  imageFilename.textContent = '未選擇';
+  imagePreview.hidden = true;
+  hideMsg();
+}
+
+/* ── Edited Cards ──────────────────────────────────────────────────────── */
+async function loadEditedCards() {
+  try {
+    const res = await fetch('/api/cards');
+    allCards = await res.json();
+  } catch (e) {
+    allCards = [];
+  }
+  renderEditedList();
+}
+
+function renderEditedList() {
+  if (allCards.length === 0) {
+    editedCardList.innerHTML = '<li class="empty-hint">尚無已編輯卡片</li>';
+    return;
+  }
+  editedCardList.innerHTML = allCards.map(card => `
+    <li class="card-list-item${activeEditedId === card.id ? ' active' : ''}" data-id="${esc(card.id)}">
+      <div class="item-title">${esc(card.title)}</div>
+      <div class="item-meta">${esc(card.type || '')} ${card.id}</div>
+    </li>
+  `).join('');
+  editedCardList.querySelectorAll('.card-list-item').forEach(li => {
+    li.addEventListener('click', () => selectEditedCard(li.dataset.id));
+  });
+}
+
+function selectEditedCard(id) {
+  activeEditedId = id;
+  activeRawId = null;
+  renderRawList();
+  renderEditedList();
+  const card = allCards.find(c => c.id === id);
+  if (!card) return;
+
+  cardId.value = card.id;
+  cardTitle.value = card.title;
+  cardType.value = card.type || '';
+  cardRelated.value = (card.related || []).join(', ');
+  cardTags.value = (card.tags || []).join(', ');
+  cardContent.value = card.content || '';
+  cardImage.value = card.image || '';
+  if (card.image) {
+    imagePreview.src = card.image;
+    imagePreview.hidden = false;
+    imageFilename.textContent = '已設定圖片';
+  } else {
+    imagePreview.hidden = true;
+    imageFilename.textContent = '未選擇';
+  }
   hideMsg();
 }
 
 /* ── Raw Upload ────────────────────────────────────────────────────────── */
-rawUploadInput.addEventListener('change', () => {
+rawUploadInput.addEventListener('change', async () => {
   const files = Array.from(rawUploadInput.files);
   if (!files.length) return;
-  let pending = files.length;
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const content = e.target.result;
-      const titleMatch = content.match(/^#\s+(.+)/m);
-      const title = titleMatch ? titleMatch[1].trim() : file.name.replace(/\.md$/, '');
-      const id = file.name.replace(/\.md$/, '');
-      rawCards = rawCards.filter(c => c.id !== id);
-      rawCards.push({ id, title, filename: file.name, content });
-      pending--;
-      if (pending === 0) {
-        localStorage.setItem(LS_RAW, JSON.stringify(rawCards));
-        rawUploadInput.value = '';
-        renderRawList();
-      }
-    };
-    reader.readAsText(file);
-  });
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append('file', file);
+    try {
+      await fetch('/api/raw-cards/upload', { method: 'POST', body: formData });
+    } catch (e) {
+      // ignore individual failures
+    }
+    formData.delete('file');
+  }
+  rawUploadInput.value = '';
+  await loadRawCards();
+});
+
+/* ── New Card Button ───────────────────────────────────────────────────── */
+newCardBtn.addEventListener('click', () => {
+  activeRawId = null;
+  activeEditedId = null;
+  renderRawList();
+  renderEditedList();
+  editForm.reset();
+  cardId.value = generateTimeId();
+  cardImage.value = '';
+  imageFilename.textContent = '未選擇';
+  imagePreview.hidden = true;
+  hideMsg();
 });
 
 /* ── Image Upload ──────────────────────────────────────────────────────── */
@@ -151,53 +227,52 @@ clearFormBtn.addEventListener('click', () => {
   imageFilename.textContent = '未選擇';
   imagePreview.hidden = true;
   activeRawId = null;
+  activeEditedId = null;
   renderRawList();
+  renderEditedList();
   hideMsg();
 });
 
-editForm.addEventListener('submit', e => {
+editForm.addEventListener('submit', async e => {
   e.preventDefault();
   const payload = {
     id: cardId.value.trim(),
     title: cardTitle.value.trim(),
-    type: cardType.value.trim(),
+    type: cardType.value,
     related: cardRelated.value.split(',').map(s => s.trim()).filter(Boolean),
     tags: cardTags.value.split(',').map(s => s.trim()).filter(Boolean),
     image: cardImage.value,
-    front: cardFront.value.trim(),
-    back: cardBack.value.trim(),
+    content: cardContent.value.trim(),
   };
+  if (!payload.id || !payload.title) {
+    showMsg('❌ ID 和標題為必填欄位', 'error');
+    return;
+  }
   try {
-    let cards = JSON.parse(localStorage.getItem(LS_CARDS) || '[]');
-    cards = cards.filter(c => c.id !== payload.id);
-    cards.push(payload);
-    localStorage.setItem(LS_CARDS, JSON.stringify(cards));
+    const res = await fetch('/api/cards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('Server error');
     showMsg('✅ 卡片已儲存！', 'success');
+    activeEditedId = payload.id;
+    activeRawId = null;
+    await loadBothLists();
   } catch (err) {
     showMsg('❌ 儲存失敗', 'error');
   }
 });
 
 /* ── Card Map ──────────────────────────────────────────────────────────── */
-function loadProcessedCards() {
+async function loadProcessedCards() {
   try {
-    allCards = JSON.parse(localStorage.getItem(LS_CARDS) || '[]');
-    populateTypeFilter();
+    const res = await fetch('/api/cards');
+    allCards = await res.json();
     renderCards(allCards);
   } catch (e) {
     cardsGrid.innerHTML = '<div class="no-results">載入失敗</div>';
   }
-}
-
-function populateTypeFilter() {
-  const types = [...new Set(allCards.map(c => c.type).filter(Boolean))];
-  typeFilter.innerHTML = '<option value="">全部類型</option>';
-  types.forEach(t => {
-    const opt = document.createElement('option');
-    opt.value = t;
-    opt.textContent = t;
-    typeFilter.appendChild(opt);
-  });
 }
 
 function renderCards(cards) {
@@ -207,19 +282,12 @@ function renderCards(cards) {
     return;
   }
   cardsGrid.innerHTML = cards.map(card => `
-    <div class="card" onclick="this.classList.toggle('flipped')">
-      <div class="card-inner">
-        <div class="card-front">
-          <h3>${esc(card.title)}</h3>
-          <p>${esc(card.front || '')}</p>
-          <div class="card-meta">
-            ${card.type ? `<span class="card-type">${esc(card.type)}</span>` : ''}
-            ${(card.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
-          </div>
-        </div>
-        <div class="card-back">
-          <p>${esc(card.back || '')}</p>
-        </div>
+    <div class="card">
+      <h3>${esc(card.title)}</h3>
+      <p class="card-content-text">${esc(card.content || '')}</p>
+      <div class="card-meta">
+        ${card.type ? `<span class="card-type">${esc(card.type)}</span>` : ''}
+        ${(card.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
       </div>
     </div>
   `).join('');
@@ -231,8 +299,7 @@ function applyFilters() {
   const filtered = allCards.filter(c => {
     const matchSearch = !term ||
       (c.title || '').toLowerCase().includes(term) ||
-      (c.front || '').toLowerCase().includes(term) ||
-      (c.back || '').toLowerCase().includes(term) ||
+      (c.content || '').toLowerCase().includes(term) ||
       (c.tags || []).some(t => t.toLowerCase().includes(term));
     const matchType = !type || c.type === type;
     return matchSearch && matchType;

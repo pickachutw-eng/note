@@ -24,13 +24,22 @@
         <aside class="raw-panel">
           <div class="panel-header">
             <h2>原始卡片列表</h2>
-            <label class="upload-btn" title="上傳 MD 檔">
-              ＋ 上傳
-              <input type="file" id="rawUploadInput" accept=".md" multiple hidden>
-            </label>
+            <div class="panel-actions">
+              <label class="upload-btn" title="上傳 MD 檔">
+                ＋ 上傳
+                <input type="file" id="rawUploadInput" accept=".md" multiple hidden>
+              </label>
+              <button type="button" id="newCardBtn" class="create-btn">✦ 創建新卡片</button>
+            </div>
           </div>
           <ul id="rawCardList" class="card-list">
             <li class="empty-hint">載入中…</li>
+          </ul>
+          <div class="panel-section-header">
+            <h2>已編輯過卡片列表</h2>
+          </div>
+          <ul id="editedCardList" class="card-list edited-list">
+            <li class="empty-hint">尚無已編輯卡片</li>
           </ul>
         </aside>
 
@@ -39,20 +48,24 @@
           <h2>編輯卡片</h2>
           <form id="editForm" class="edit-form">
             <div class="form-row">
-              <label>ID <span class="hint">（自動生成）</span></label>
-              <input type="text" id="cardId" name="id" placeholder="card-001" required>
+              <label>ID <span class="hint">（依時間自動生成）</span></label>
+              <input type="text" id="cardId" name="id" placeholder="202604101437" readonly>
             </div>
             <div class="form-row">
               <label>標題</label>
               <input type="text" id="cardTitle" name="title" placeholder="卡片標題" required>
             </div>
             <div class="form-row">
-              <label>類型 / 分類</label>
-              <input type="text" id="cardType" name="type" placeholder="概念卡、問題卡…">
+              <label>分類</label>
+              <select id="cardType" name="type">
+                <option value="">— 請選擇分類 —</option>
+                <option value="問題卡">問題卡</option>
+                <option value="地圖卡">地圖卡</option>
+              </select>
             </div>
             <div class="form-row">
               <label>關聯卡片 <span class="hint">（逗號分隔 ID）</span></label>
-              <input type="text" id="cardRelated" name="related" placeholder="card-002, card-003">
+              <input type="text" id="cardRelated" name="related" placeholder="202604101437, 202604101500">
             </div>
             <div class="form-row">
               <label>Tags <span class="hint">（逗號分隔）</span></label>
@@ -69,12 +82,8 @@
               <img id="imagePreview" class="image-preview" src="" alt="" hidden>
             </div>
             <div class="form-row">
-              <label>正面 (Front)</label>
-              <textarea id="cardFront" name="front" rows="5" placeholder="問題 / 正面內容"></textarea>
-            </div>
-            <div class="form-row">
-              <label>反面 (Back)</label>
-              <textarea id="cardBack" name="back" rows="5" placeholder="答案 / 反面內容"></textarea>
+              <label>內容</label>
+              <textarea id="cardContent" name="content" rows="10" placeholder="卡片內容…"></textarea>
             </div>
             <div class="form-actions">
               <button type="button" id="clearFormBtn" class="btn-secondary">清除</button>
@@ -90,7 +99,11 @@
     <section id="tab-map" class="tab-content">
       <div class="map-controls">
         <input type="text" id="searchInput" placeholder="🔍 搜尋卡片…">
-        <select id="typeFilter"><option value="">全部類型</option></select>
+        <select id="typeFilter">
+          <option value="">全部類型</option>
+          <option value="問題卡">問題卡</option>
+          <option value="地圖卡">地圖卡</option>
+        </select>
         <button id="resetFilterBtn" class="btn-secondary">重置</button>
         <span id="cardCount" class="card-count"></span>
       </div>

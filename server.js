@@ -12,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Directories
-const RAW_DIR = path.join(__dirname, 'backend/raw');
+const RAW_DIR = path.join(__dirname, 'backend/cards');
 const PROCESSED_DIR = path.join(__dirname, 'backend/processed');
 const UPLOADS_DIR = path.join(__dirname, 'backend/uploads');
 const DATA_DIR = path.join(__dirname, 'backend/data');
@@ -92,17 +92,22 @@ const readLimiter = rateLimit({ windowMs: 60 * 1000, max: 200, standardHeaders: 
 
 // ── API ────────────────────────────────────────────────────────────────────
 
-// List raw cards
+// List raw cards (cards folder), excluding those already edited (in cards.json)
 app.get('/api/raw-cards', readLimiter, (req, res) => {
+  const editedIds = new Set(
+    JSON.parse(fs.readFileSync(CARDS_JSON, 'utf-8')).map(c => c.id)
+  );
   const files = fs.readdirSync(RAW_DIR).filter(f => f.endsWith('.md'));
-  const cards = files.map(file => {
-    const filePath = path.join(RAW_DIR, file);
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const firstLine = content.split('\n').find(l => l.startsWith('# '));
-    const id = path.basename(file, '.md');
-    const title = firstLine ? firstLine.replace(/^# /, '').trim() : id;
-    return { id, filename: file, title, content };
-  });
+  const cards = files
+    .map(file => {
+      const id = path.basename(file, '.md');
+      const filePath = path.join(RAW_DIR, file);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const firstLine = content.split('\n').find(l => l.startsWith('# '));
+      const title = firstLine ? firstLine.replace(/^# /, '').trim() : id;
+      return { id, filename: file, title, content };
+    })
+    .filter(c => !editedIds.has(c.id));
   res.json(cards);
 });
 
@@ -126,7 +131,7 @@ app.get('/api/cards', readLimiter, (req, res) => {
 
 // Save processed card
 app.post('/api/cards', writeLimiter, (req, res) => {
-  const { title, type, related, tags, image, front, back } = req.body;
+  const { title, type, related, tags, image, content } = req.body;
   const id = sanitizeId(req.body.id);
   if (!id || !title) return res.status(400).json({ error: 'id and title are required' });
 
@@ -143,13 +148,9 @@ app.post('/api/cards', writeLimiter, (req, res) => {
     `image: ${image || ''}`,
     '---',
     '',
-    '## 正面 (Front)',
+    '## 內容',
     '',
-    front || '',
-    '',
-    '## 反面 (Back)',
-    '',
-    back || '',
+    content || '',
   ].join('\n');
 
   // Resolve and verify the path stays within PROCESSED_DIR
@@ -162,7 +163,7 @@ app.post('/api/cards', writeLimiter, (req, res) => {
   // Update cards.json
   const cards = JSON.parse(fs.readFileSync(CARDS_JSON, 'utf-8'));
   const now = new Date().toISOString();
-  const cardData = { id, title, type: type || '', related: relatedList, tags: tagList, image: image || '', front: front || '', back: back || '', updatedAt: now };
+  const cardData = { id, title, type: type || '', related: relatedList, tags: tagList, image: image || '', content: content || '', updatedAt: now };
   const idx = cards.findIndex(c => c.id === id);
   if (idx >= 0) {
     cards[idx] = { ...cards[idx], ...cardData };
