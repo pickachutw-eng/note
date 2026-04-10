@@ -30,7 +30,7 @@ async function ensureAuth() {
       await signInAnonymously(auth);
     }
   } catch (e) {
-    console.warn('匿名登入失敗，將嘗試未認證存取:', e.code, e.message);
+    console.warn('匿名登入失敗，後續操作可能受限:', e.code, e.message);
   }
 }
 
@@ -110,7 +110,7 @@ async function loadEditedCards() {
     renderEditedList();
   } catch (e) {
     console.error('Firebase 讀取錯誤:', e.code, e.message);
-    editedCardList.innerHTML = `<li class="empty-hint">Firebase 載入失敗：${e.code || e.message}</li>`;
+    editedCardList.innerHTML = '<li class="empty-hint">Firebase 載入失敗，請確認 Firestore 設定</li>';
   }
 }
 
@@ -188,7 +188,7 @@ editForm.addEventListener('submit', async e => {
     await loadEditedCards();
   } catch (err) {
     console.error('Firebase 儲存錯誤:', err.code, err.message);
-    showMsg(`❌ 儲存至 Firebase 失敗：${err.code || err.message}`, 'error');
+    showMsg('❌ 儲存至 Firebase 失敗，請確認 Firestore 設定', 'error');
   }
 });
 
