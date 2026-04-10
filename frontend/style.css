@@ -75,6 +75,8 @@ body {
   overflow: hidden;
 }
 
+.edited-list { border-top: none; }
+
 .panel-header {
   display: flex;
   align-items: center;
@@ -85,16 +87,40 @@ body {
 }
 .panel-header h2 { font-size: 1rem; font-weight: 700; }
 
+.panel-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
 .upload-btn {
   background: var(--primary);
   color: #fff;
-  padding: 6px 14px;
+  padding: 6px 12px;
   border-radius: 6px;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   cursor: pointer;
   transition: background 0.2s;
+  white-space: nowrap;
 }
 .upload-btn:hover { background: var(--primary-dark); }
+
+.create-btn {
+  background: var(--secondary);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  border: none;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.create-btn:hover { background: #5f3a85; }
+
+.panel-section-header {
+  padding: 10px 20px;
+  background: #f0f0f0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.panel-section-header h2 { font-size: 0.9rem; font-weight: 700; color: var(--text-muted); }
 
 .card-list {
   list-style: none;
@@ -112,6 +138,7 @@ body {
 .card-list-item.active { background: #e8eeff; border-left: 3px solid var(--primary); }
 .card-list-item .item-title { font-weight: 600; font-size: 0.9rem; }
 .card-list-item .item-filename { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+.card-list-item .item-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
 .empty-hint { padding: 24px 20px; color: var(--text-muted); font-size: 0.9rem; }
 
 /* ── Edit Panel (Right) ─────────────────────────────────────────────────── */
@@ -135,6 +162,7 @@ body {
 .form-row label .hint { font-weight: 400; color: var(--text-muted); }
 
 .form-row input[type="text"],
+.form-row select,
 .form-row textarea {
   width: 100%;
   padding: 10px 14px;
@@ -146,11 +174,13 @@ body {
   resize: vertical;
 }
 .form-row input[type="text"]:focus,
+.form-row select:focus,
 .form-row textarea:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
 }
+.form-row input[readonly] { background: #f5f5f5; color: var(--text-muted); cursor: default; }
 
 .image-upload-area { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .image-filename { font-size: 0.85rem; color: var(--text-muted); }
@@ -218,49 +248,21 @@ body {
   padding: 28px 32px;
 }
 
-/* ── Flip Card ──────────────────────────────────────────────────────────── */
+/* ── Card (Map) ─────────────────────────────────────────────────────────── */
 .card {
-  height: 260px;
-  cursor: pointer;
-  perspective: 1200px;
-}
-.card-inner {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transition: transform 0.6s;
-  transform-style: preserve-3d;
-}
-.card.flipped .card-inner { transform: rotateY(180deg); }
-
-.card-front,
-.card-back {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  backface-visibility: hidden;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
   border-radius: var(--radius);
   padding: 24px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+  gap: 10px;
   color: #fff;
   box-shadow: var(--shadow);
-  overflow: hidden;
+  min-height: 180px;
 }
-.card-front {
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-}
-.card-back {
-  background: linear-gradient(135deg, var(--accent), var(--danger));
-  transform: rotateY(180deg);
-}
-.card-front h3 { font-size: 1rem; margin-bottom: 10px; }
-.card-front p,
-.card-back p { font-size: 0.85rem; opacity: 0.95; line-height: 1.5; max-height: 120px; overflow: hidden; }
-.card-meta { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.card h3 { font-size: 1rem; }
+.card-content-text { font-size: 0.85rem; opacity: 0.95; line-height: 1.5; flex: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; }
+.card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
 .card-type { background: rgba(255,255,255,0.25); padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; }
 .tag { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; }
 
