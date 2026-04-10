@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await signInAnonymously(auth);
   } catch (authErr) {
     console.error('匿名登入失敗', authErr);
-    showMsg(`❌ 匿名登入失敗，可能無法儲存。請確認網路或重新整理：${authErr.message}`, 'error');
+    showMsg(`❌ 匿名登入失敗，可能無法儲存，請確認網路或重新整理：${authErr.message}`, 'error');
   }
   await loadEditedCards();
 });
@@ -604,6 +604,7 @@ function getComparableTime(ts) {
 
   if (typeof ts === 'string') {
     const trimmed = ts.trim();
+    if (trimmed.startsWith('-')) return 0;
     if (trimmed && NUMERIC_PATTERN.test(trimmed)) {
       const num = Number(trimmed);
       if (!Number.isNaN(num)) return num;
