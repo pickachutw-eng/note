@@ -252,7 +252,6 @@ imageInput.addEventListener('change', () => {
 /* ── Edit Form ─────────────────────────────────────────────────────────── */
 clearFormBtn.addEventListener('click', () => {
   editForm.reset();
-  cardId.value = '';
   cardSourceId.value = '';
   cardImage.value = '';
   imageFilename.textContent = '未選擇';
