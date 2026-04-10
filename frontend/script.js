@@ -2,39 +2,52 @@
 
 // ── Firebase 初始化 ──────────────────────────────────────────────────
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-import { 
-  getFirestore, collection, doc, setDoc, getDocs, query, orderBy, serverTimestamp 
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  getDocs,
+  query,
+  orderBy,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
 
-// 請在此處貼上你在 Firebase Console 取得的設定
+// 請確認這裡是你的 Firebase 設定
 const firebaseConfig = {
-    apiKey: "AIzaSyAWBPlP6kJdZsZ2fiOZuycYnTcNY2Xasys",
-    authDomain: "notes-97961.firebaseapp.com",
-    databaseURL: "https://notes-97961-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "notes-97961",
-    storageBucket: "notes-97961.firebasestorage.app",
-    messagingSenderId: "953339062268",
-    appId: "1:953339062268:web:d5c3f1ce74a814098f7479"
-  };
+  apiKey: "AIzaSyAWBPlP6kJdZsZ2fiOZuycYnTcNY2Xasys",
+  authDomain: "notes-97961.firebaseapp.com",
+  databaseURL: "https://notes-97961-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "notes-97961",
+  storageBucket: "notes-97961.firebasestorage.app",
+  messagingSenderId: "953339062268",
+  appId: "1:953339062268:web:d5c3f1ce74a814098f7479"
+};
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const cardsCol = collection(db, "cards");
 
-/* ── State ────────────────────────────────────────────────────────────── */
-let allCards = [];
-let rawCards = []; // 原始 MD 列表暫時保留結構
+// ── Local Storage Keys ───────────────────────────────────────────────
+const LOCAL_RAW_CARDS_KEY = 'rawCardsDrafts';
+
+// ── State ────────────────────────────────────────────────────────────
+let allCards = [];   // Firebase 已編輯卡片
+let rawCards = [];   // 本機暫存原始卡片
 let activeRawId = null;
 let activeEditedId = null;
 
-/* ── DOM refs ──────────────────────────────────────────────────────────── */
+// ── DOM refs ─────────────────────────────────────────────────────────
 const tabBtns = document.querySelectorAll('.nav-btn');
 const tabContents = document.querySelectorAll('.tab-content');
+
 const rawCardList = document.getElementById('rawCardList');
 const editedCardList = document.getElementById('editedCardList');
 const rawUploadInput = document.getElementById('rawUploadInput');
+
 const newCardBtn = document.getElementById('newCardBtn');
 const editForm = document.getElementById('editForm');
+
 const cardId = document.getElementById('cardId');
 const cardTitle = document.getElementById('cardTitle');
 const cardType = document.getElementById('cardType');
@@ -42,123 +55,421 @@ const cardRelated = document.getElementById('cardRelated');
 const cardTags = document.getElementById('cardTags');
 const cardImage = document.getElementById('cardImage');
 const cardContent = document.getElementById('cardContent');
+
 const imageInput = document.getElementById('imageInput');
 const imageUploadBtn = document.getElementById('imageUploadBtn');
 const imageFilename = document.getElementById('imageFilename');
 const imagePreview = document.getElementById('imagePreview');
+
 const clearFormBtn = document.getElementById('clearFormBtn');
 const formMsg = document.getElementById('formMsg');
+
 const searchInput = document.getElementById('searchInput');
 const typeFilter = document.getElementById('typeFilter');
 const resetFilterBtn = document.getElementById('resetFilterBtn');
 const cardsGrid = document.getElementById('cardsGrid');
 const cardCount = document.getElementById('cardCount');
 
-/* ── Tab Navigation ────────────────────────────────────────────────────── */
-tabBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
-    tabBtns.forEach(b => b.classList.remove('active'));
-    tabContents.forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'map') loadProcessedCards();
-  });
+// ── Init ─────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  bindEvents();
+  cardId.value = generateTimeId();
+  loadRawCardsFromLocal();
+  renderRawList();
+  await loadEditedCards();
 });
 
-/* ── Init ──────────────────────────────────────────────────────────────── */
-document.addEventListener('DOMContentLoaded', () => {
-  loadBothLists();
-});
+// ── Event Binding ────────────────────────────────────────────────────
+function bindEvents() {
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      tabBtns.forEach(b => b.classList.remove('active'));
+      tabContents.forEach(t => t.classList.remove('active'));
 
-function generateTimeId() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const mo = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const h = String(now.getHours()).padStart(2, '0');
-  const mi = String(now.getMinutes()).padStart(2, '0');
-  return `${y}${mo}${d}${h}${mi}`;
-}
+      btn.classList.add('active');
+      const target = document.getElementById('tab-' + btn.dataset.tab);
+      if (target) target.classList.add('active');
 
-async function loadBothLists() {
-  await Promise.all([loadRawCards(), loadEditedCards()]);
-}
-
-/* ── Firebase 讀取 (Edited Cards) ───────────────────────────────────────── */
-async function loadEditedCards() {
-  try {
-    const q = query(cardsCol, orderBy("updatedAt", "desc"));
-    const querySnapshot = await getDocs(q);
-    allCards = [];
-    querySnapshot.forEach((doc) => {
-      allCards.push(doc.data());
+      if (btn.dataset.tab === 'map') {
+        await loadProcessedCards();
+      }
     });
-    renderEditedList();
-  } catch (e) {
-    console.error(e);
-    editedCardList.innerHTML = '<li class="empty-hint">Firebase 載入失敗</li>';
+  });
+
+  if (rawUploadInput) {
+    rawUploadInput.addEventListener('change', handleRawUpload);
+  }
+
+  if (newCardBtn) {
+    newCardBtn.addEventListener('click', () => {
+      prepareNewCardForm();
+    });
+  }
+
+  if (imageUploadBtn) {
+    imageUploadBtn.addEventListener('click', () => {
+      if (imageInput) imageInput.click();
+    });
+  }
+
+  if (imageInput) {
+    imageInput.addEventListener('change', handleImageSelect);
+  }
+
+  if (clearFormBtn) {
+    clearFormBtn.addEventListener('click', () => {
+      clearForm();
+    });
+  }
+
+  if (editForm) {
+    editForm.addEventListener('submit', handleSaveCard);
+  }
+
+  if (searchInput) searchInput.addEventListener('input', applyFilters);
+  if (typeFilter) typeFilter.addEventListener('change', applyFilters);
+  if (resetFilterBtn) {
+    resetFilterBtn.addEventListener('click', () => {
+      if (searchInput) searchInput.value = '';
+      if (typeFilter) typeFilter.value = '';
+      renderCards(allCards);
+    });
   }
 }
 
-/* ── 原有的 Raw Cards 邏輯 (暫時維持本地 fetch，直到你決定上傳機制) ── */
-async function loadRawCards() {
-  // 注意：若你完全移至 Firebase，此部分可能需要改寫或移除
-  rawCardList.innerHTML = '<li class="empty-hint">請透過 Firebase 管理原始卡片</li>';
+// ── Upload Raw Markdown ──────────────────────────────────────────────
+async function handleRawUpload(event) {
+  const files = Array.from(event.target.files || []);
+  if (files.length === 0) return;
+
+  for (const file of files) {
+    const text = await file.text();
+    const parsed = parseMarkdownCard(text, file.name);
+
+    rawCards.unshift({
+      localId: generateLocalRawId(),
+      sourceName: file.name,
+      title: parsed.title,
+      type: parsed.type,
+      related: parsed.related,
+      tags: parsed.tags,
+      image: parsed.image, // 只是文字欄位，不是圖片內容
+      content: parsed.content,
+      uploadedAt: Date.now()
+    });
+  }
+
+  saveRawCardsToLocal();
+  renderRawList();
+
+  // 上傳後清空 input，才能再次選同一檔案
+  event.target.value = '';
+
+  showMsg('✅ 原始卡片已加入左側列表（僅暫存本機）', 'success');
+}
+
+// ── Parse Markdown ───────────────────────────────────────────────────
+function parseMarkdownCard(text, filename) {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+
+  let title = '';
+  let type = '';
+  let related = [];
+  let tags = [];
+  let image = '';
+  let contentStartIndex = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (!title && line.startsWith('# ')) {
+      title = line.replace(/^#\s+/, '').trim();
+      continue;
+    }
+
+    if (/^type\s*:/i.test(line)) {
+      type = line.split(':').slice(1).join(':').trim();
+      continue;
+    }
+
+    if (/^related\s*:/i.test(line)) {
+      related = line
+        .split(':')
+        .slice(1)
+        .join(':')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      continue;
+    }
+
+    if (/^tags\s*:/i.test(line)) {
+      tags = line
+        .split(':')
+        .slice(1)
+        .join(':')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      continue;
+    }
+
+    if (/^image\s*:/i.test(line)) {
+      image = line.split(':').slice(1).join(':').trim();
+      continue;
+    }
+
+    if (line === '---') {
+      contentStartIndex = i + 1;
+      break;
+    }
+  }
+
+  const content = lines.slice(contentStartIndex).join('\n').trim();
+
+  return {
+    title: title || filename.replace(/\.md$/i, ''),
+    type,
+    related,
+    tags,
+    image,
+    content: content || text.trim()
+  };
+}
+
+// ── Raw Cards Local Storage ──────────────────────────────────────────
+function loadRawCardsFromLocal() {
+  try {
+    const saved = localStorage.getItem(LOCAL_RAW_CARDS_KEY);
+    rawCards = saved ? JSON.parse(saved) : [];
+  } catch (err) {
+    console.error('讀取本機原始卡片失敗', err);
+    rawCards = [];
+  }
+}
+
+function saveRawCardsToLocal() {
+  localStorage.setItem(LOCAL_RAW_CARDS_KEY, JSON.stringify(rawCards));
+}
+
+function removeRawCardFromLocal(localId) {
+  rawCards = rawCards.filter(card => card.localId !== localId);
+  saveRawCardsToLocal();
+}
+
+// ── Render Raw List ──────────────────────────────────────────────────
+function renderRawList() {
+  if (!rawCardList) return;
+
+  if (rawCards.length === 0) {
+    rawCardList.innerHTML = '<li class="empty-hint">尚無原始卡片，請按＋上傳</li>';
+    return;
+  }
+
+  rawCardList.innerHTML = rawCards.map(card => `
+    <li class="card-list-item${activeRawId === card.localId ? ' active' : ''}" data-id="${esc(card.localId)}" data-kind="raw">
+      <div class="item-title">${esc(card.title || '(未命名卡片)')}</div>
+      <div class="item-meta">原始卡片｜${esc(card.sourceName || '')}</div>
+    </li>
+  `).join('');
+
+  rawCardList.querySelectorAll('.card-list-item').forEach(li => {
+    li.addEventListener('click', () => {
+      selectRawCard(li.dataset.id);
+    });
+  });
+}
+
+function selectRawCard(localId) {
+  activeRawId = localId;
+  activeEditedId = null;
+
+  renderRawList();
+  renderEditedList();
+
+  const card = rawCards.find(c => c.localId === localId);
+  if (!card) return;
+
+  fillForm({
+    id: generateTimeId(),
+    title: card.title || '',
+    type: normalizeType(card.type || ''),
+    related: card.related || [],
+    tags: card.tags || [],
+    image: card.image || '',
+    content: card.content || ''
+  });
+
+  hideMsg();
+}
+
+// ── Firebase Load Edited Cards ───────────────────────────────────────
+async function loadEditedCards() {
+  try {
+    let querySnapshot;
+
+    try {
+      const q = query(cardsCol, orderBy("updatedAt", "desc"));
+      querySnapshot = await getDocs(q);
+    } catch (orderErr) {
+      console.warn('orderBy(updatedAt) 失敗，改用基本查詢', orderErr);
+      querySnapshot = await getDocs(cardsCol);
+    }
+
+    allCards = [];
+    querySnapshot.forEach((snap) => {
+      allCards.push(snap.data());
+    });
+
+    // 若沒有排序，就手動按 updatedAt 粗略排序
+    allCards.sort((a, b) => {
+      const ta = getComparableTime(a.updatedAt);
+      const tb = getComparableTime(b.updatedAt);
+      return tb - ta;
+    });
+
+    renderEditedList();
+  } catch (e) {
+    console.error(e);
+    allCards = [];
+    if (editedCardList) {
+      editedCardList.innerHTML = '<li class="empty-hint">Firebase 載入失敗</li>';
+    }
+  }
 }
 
 function renderEditedList() {
+  if (!editedCardList) return;
+
   if (allCards.length === 0) {
     editedCardList.innerHTML = '<li class="empty-hint">尚無已編輯卡片</li>';
     return;
   }
+
   editedCardList.innerHTML = allCards.map(card => `
-    <li class="card-list-item${activeEditedId === card.id ? ' active' : ''}" data-id="${esc(card.id)}">
-      <div class="item-title">${esc(card.title)}</div>
-      <div class="item-meta">${esc(card.type || '')} ${card.id}</div>
+    <li class="card-list-item${activeEditedId === card.id ? ' active' : ''}" data-id="${esc(card.id)}" data-kind="edited">
+      <div class="item-title">${esc(card.title || '(未命名卡片)')}</div>
+      <div class="item-meta">${esc(card.type || '')} ${esc(card.id || '')}</div>
     </li>
   `).join('');
+
   editedCardList.querySelectorAll('.card-list-item').forEach(li => {
-    li.addEventListener('click', () => selectEditedCard(li.dataset.id));
+    li.addEventListener('click', () => {
+      selectEditedCard(li.dataset.id);
+    });
   });
 }
 
 function selectEditedCard(id) {
   activeEditedId = id;
   activeRawId = null;
+
+  renderRawList();
   renderEditedList();
+
   const card = allCards.find(c => c.id === id);
   if (!card) return;
 
-  cardId.value = card.id;
-  cardTitle.value = card.title;
-  cardType.value = card.type || '';
-  cardRelated.value = (card.related || []).join(', ');
-  cardTags.value = (card.tags || []).join(', ');
-  cardContent.value = card.content || '';
-  cardImage.value = card.image || '';
+  fillForm({
+    id: card.id || '',
+    title: card.title || '',
+    type: card.type || '',
+    related: card.related || [],
+    tags: card.tags || [],
+    image: card.image || '',
+    content: card.content || ''
+  });
+
   if (card.image) {
-    imagePreview.src = card.image;
-    imagePreview.hidden = false;
-    imageFilename.textContent = '已從雲端載入圖片';
+    imageFilename.textContent = `已記錄：${card.image}`;
   } else {
-    imagePreview.hidden = true;
     imageFilename.textContent = '未選擇';
   }
+  if (imagePreview) imagePreview.hidden = true;
+
   hideMsg();
 }
 
-/* ── Firebase 儲存 ───────────────────────────────────────────────────── */
-editForm.addEventListener('submit', async e => {
+// ── Form Handling ────────────────────────────────────────────────────
+function prepareNewCardForm() {
+  activeRawId = null;
+  activeEditedId = null;
+
+  renderRawList();
+  renderEditedList();
+
+  clearForm();
+  cardId.value = generateTimeId();
+}
+
+function clearForm() {
+  if (editForm) editForm.reset();
+  if (cardId) cardId.value = generateTimeId();
+  if (cardImage) cardImage.value = '';
+  if (imageFilename) imageFilename.textContent = '未選擇';
+  if (imagePreview) {
+    imagePreview.src = '';
+    imagePreview.hidden = true;
+  }
+  if (imageInput) imageInput.value = '';
+  hideMsg();
+}
+
+function fillForm(card) {
+  if (cardId) cardId.value = card.id || generateTimeId();
+  if (cardTitle) cardTitle.value = card.title || '';
+  if (cardType) cardType.value = card.type || '';
+  if (cardRelated) cardRelated.value = (card.related || []).join(', ');
+  if (cardTags) cardTags.value = (card.tags || []).join(', ');
+  if (cardImage) cardImage.value = card.image || '';
+  if (cardContent) cardContent.value = card.content || '';
+
+  if (imageFilename) {
+    imageFilename.textContent = card.image ? `已記錄：${card.image}` : '未選擇';
+  }
+
+  if (imagePreview) {
+    imagePreview.src = '';
+    imagePreview.hidden = true;
+  }
+}
+
+function handleImageSelect() {
+  const file = imageInput?.files?.[0];
+  if (!file) return;
+
+  // 只記錄檔名，不存圖片內容到 Firestore
+  if (cardImage) cardImage.value = file.name;
+  if (imageFilename) imageFilename.textContent = file.name;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (imagePreview) {
+      imagePreview.src = e.target.result;
+      imagePreview.hidden = false;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function handleSaveCard(e) {
   e.preventDefault();
+
   const payload = {
-    id: cardId.value.trim(),
-    title: cardTitle.value.trim(),
-    type: cardType.value,
-    related: cardRelated.value.split(',').map(s => s.trim()).filter(Boolean),
-    tags: cardTags.value.split(',').map(s => s.trim()).filter(Boolean),
-    image: cardImage.value,
-    content: cardContent.value.trim(),
-    updatedAt: serverTimestamp() // 使用 Firebase 伺服器時間
+    id: (cardId?.value || '').trim(),
+    title: (cardTitle?.value || '').trim(),
+    type: cardType?.value || '',
+    related: (cardRelated?.value || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean),
+    tags: (cardTags?.value || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean),
+    image: (cardImage?.value || '').trim(), // 只存檔名
+    content: (cardContent?.value || '').trim(),
+    updatedAt: serverTimestamp()
   };
 
   if (!payload.id || !payload.title) {
@@ -168,63 +479,40 @@ editForm.addEventListener('submit', async e => {
 
   try {
     await setDoc(doc(db, "cards", payload.id), payload);
-    showMsg('✅ 已成功儲存至雲端！', 'success');
+
+    // 如果是從原始卡片編輯而來，儲存成功後移出原始列表
+    if (activeRawId) {
+      removeRawCardFromLocal(activeRawId);
+      activeRawId = null;
+      renderRawList();
+    }
+
     activeEditedId = payload.id;
     await loadEditedCards();
+
+    showMsg('✅ 已成功儲存到 Firebase', 'success');
   } catch (err) {
     console.error(err);
-    showMsg('❌ 儲存至 Firebase 失敗', 'error');
+    showMsg(`❌ 儲存到 Firebase 失敗：${err.message}`, 'error');
   }
-});
+}
 
-/* ── 介面其他邏輯 (維持不變) ─────────────────────────────────────────── */
-newCardBtn.addEventListener('click', () => {
-  activeRawId = null;
-  activeEditedId = null;
-  renderEditedList();
-  editForm.reset();
-  cardId.value = generateTimeId();
-  cardImage.value = '';
-  imageFilename.textContent = '未選擇';
-  imagePreview.hidden = true;
-  hideMsg();
-});
-
-imageUploadBtn.addEventListener('click', () => imageInput.click());
-imageInput.addEventListener('change', () => {
-  const file = imageInput.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    cardImage.value = e.target.result;
-    imageFilename.textContent = file.name;
-    imagePreview.src = e.target.result;
-    imagePreview.hidden = false;
-  };
-  reader.readAsDataURL(file);
-});
-
-clearFormBtn.addEventListener('click', () => {
-  editForm.reset();
-  cardImage.value = '';
-  imageFilename.textContent = '未選擇';
-  imagePreview.hidden = true;
-  activeEditedId = null;
-  renderEditedList();
-  hideMsg();
-});
-
+// ── Map Tab ──────────────────────────────────────────────────────────
 async function loadProcessedCards() {
   await loadEditedCards();
   renderCards(allCards);
 }
 
 function renderCards(cards) {
+  if (!cardCount || !cardsGrid) return;
+
   cardCount.textContent = `顯示 ${cards.length} / ${allCards.length} 張`;
+
   if (cards.length === 0) {
     cardsGrid.innerHTML = '<div class="no-results">找不到符合的卡片</div>';
     return;
   }
+
   cardsGrid.innerHTML = cards.map(card => `
     <div class="card">
       <h3>${esc(card.title)}</h3>
@@ -238,35 +526,80 @@ function renderCards(cards) {
 }
 
 function applyFilters() {
-  const term = searchInput.value.toLowerCase();
-  const type = typeFilter.value;
+  const term = (searchInput?.value || '').toLowerCase();
+  const type = typeFilter?.value || '';
+
   const filtered = allCards.filter(c => {
     const matchSearch = !term ||
       (c.title || '').toLowerCase().includes(term) ||
       (c.content || '').toLowerCase().includes(term) ||
-      (c.tags || []).some(t => t.toLowerCase().includes(term));
+      (c.tags || []).some(t => String(t).toLowerCase().includes(term));
+
     const matchType = !type || c.type === type;
     return matchSearch && matchType;
   });
+
   renderCards(filtered);
 }
 
-searchInput.addEventListener('input', applyFilters);
-typeFilter.addEventListener('change', applyFilters);
-resetFilterBtn.addEventListener('click', () => {
-  searchInput.value = '';
-  typeFilter.value = '';
-  renderCards(allCards);
-});
+// ── Helpers ──────────────────────────────────────────────────────────
+function generateTimeId() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const h = String(now.getHours()).padStart(2, '0');
+  const mi = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  return `${y}${mo}${d}${h}${mi}${s}`;
+}
 
-const HTML_ESCAPE_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+function generateLocalRawId() {
+  return `raw_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeType(type) {
+  const t = String(type || '').trim();
+  if (t === '問題卡' || t === '地圖卡') return t;
+  return '';
+}
+
+function getComparableTime(ts) {
+  if (!ts) return 0;
+
+  // Firestore Timestamp
+  if (typeof ts.toMillis === 'function') {
+    return ts.toMillis();
+  }
+
+  // Firestore plain object {seconds, nanoseconds}
+  if (typeof ts.seconds === 'number') {
+    return ts.seconds * 1000;
+  }
+
+  return 0;
+}
+
+const HTML_ESCAPE_MAP = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#039;'
+};
+
 function esc(str) {
   return String(str || '').replace(/[&<>"']/g, m => HTML_ESCAPE_MAP[m]);
 }
+
 function showMsg(text, type) {
+  if (!formMsg) return;
   formMsg.textContent = text;
   formMsg.className = 'form-msg ' + type;
 }
+
 function hideMsg() {
+  if (!formMsg) return;
+  formMsg.textContent = '';
   formMsg.className = 'form-msg';
 }
