@@ -5,6 +5,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/fireba
 import { 
   getFirestore, collection, doc, setDoc, getDocs, query, orderBy, serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
 
 // 請在此處貼上你在 Firebase Console 取得的設定
 const firebaseConfig = {
@@ -19,7 +20,19 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 const cardsCol = collection(db, "cards");
+
+// 匿名登入以滿足 Firestore 安全規則（request.auth != null）
+async function ensureAuth() {
+  try {
+    if (!auth.currentUser) {
+      await signInAnonymously(auth);
+    }
+  } catch (e) {
+    console.warn('匿名登入失敗，將嘗試未認證存取:', e.code, e.message);
+  }
+}
 
 /* ── State ────────────────────────────────────────────────────────────── */
 let allCards = [];
@@ -81,6 +94,7 @@ function generateTimeId() {
 }
 
 async function loadBothLists() {
+  await ensureAuth();
   await Promise.all([loadRawCards(), loadEditedCards()]);
 }
 
@@ -90,13 +104,13 @@ async function loadEditedCards() {
     const q = query(cardsCol, orderBy("updatedAt", "desc"));
     const querySnapshot = await getDocs(q);
     allCards = [];
-    querySnapshot.forEach((doc) => {
-      allCards.push(doc.data());
+    querySnapshot.forEach((docSnap) => {
+      allCards.push(docSnap.data());
     });
     renderEditedList();
   } catch (e) {
-    console.error(e);
-    editedCardList.innerHTML = '<li class="empty-hint">Firebase 載入失敗</li>';
+    console.error('Firebase 讀取錯誤:', e.code, e.message);
+    editedCardList.innerHTML = `<li class="empty-hint">Firebase 載入失敗：${e.code || e.message}</li>`;
   }
 }
 
@@ -167,13 +181,14 @@ editForm.addEventListener('submit', async e => {
   }
 
   try {
+    await ensureAuth();
     await setDoc(doc(db, "cards", payload.id), payload);
     showMsg('✅ 已成功儲存至雲端！', 'success');
     activeEditedId = payload.id;
     await loadEditedCards();
   } catch (err) {
-    console.error(err);
-    showMsg('❌ 儲存至 Firebase 失敗', 'error');
+    console.error('Firebase 儲存錯誤:', err.code, err.message);
+    showMsg(`❌ 儲存至 Firebase 失敗：${err.code || err.message}`, 'error');
   }
 });
 
