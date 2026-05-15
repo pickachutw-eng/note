@@ -915,6 +915,21 @@
       margin: 0 0 12px;
     }
 
+    .content-box ul,
+    .content-box ol {
+      padding-left: 1.45rem;
+    }
+
+    .content-box li {
+      margin: 4px 0;
+      line-height: 1.65;
+    }
+
+    .content-box li > ul,
+    .content-box li > ol {
+      margin: 4px 0 0;
+    }
+
     .content-box code {
       font-family: Consolas, Monaco, monospace;
       background: rgba(255,255,255,0.08);
@@ -940,6 +955,11 @@
       border-left: 3px solid rgba(110,168,255,0.45);
       padding-left: 12px;
       color: var(--muted);
+    }
+
+    .content-box .md-table-wrap {
+      display: block;
+      max-width: 100%;
     }
 
     .md-table-wrap {

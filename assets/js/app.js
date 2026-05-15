@@ -2170,7 +2170,148 @@ function openCardModal(nodeId) {
       applyFiltersAndRender();
     }
 
+    let markdownItRenderer = null;
+
+    function getMarkdownItRenderer() {
+      if (markdownItRenderer) return markdownItRenderer;
+      if (typeof window === 'undefined' || typeof window.markdownit !== 'function') return null;
+
+      const md = window.markdownit({
+        html: false,
+        linkify: true,
+        breaks: true,
+        typographer: false
+      });
+      md.renderer.rules.table_open = () => '<div class="md-table-wrap"><table class="md-table">';
+      md.renderer.rules.table_close = () => '</table></div>';
+      markdownItRenderer = md;
+      return markdownItRenderer;
+    }
+
     function renderMarkdown(content = '') {
+      const normalized = String(content || '').replace(/\r\n?/g, '\n');
+      const md = getMarkdownItRenderer();
+      if (md) {
+        try {
+          const extracted = extractMarkdownTables(normalized);
+          const rendered = enhanceRenderedMarkdownLinks(md.render(extracted.content));
+          return restoreMarkdownTables(rendered, extracted.tables);
+        } catch (error) {
+          console.warn('markdown-it 渲染失敗，改用內建簡易渲染器：', error);
+        }
+      }
+      return renderMarkdownFallback(normalized);
+    }
+
+    function extractMarkdownTables(content = '') {
+      const lines = String(content || '').split('\n');
+      const out = [];
+      const tables = [];
+      let i = 0;
+
+      while (i < lines.length) {
+        if (isMarkdownTable(lines, i)) {
+          const tableLines = [lines[i], lines[i + 1]];
+          i += 2;
+          while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+            tableLines.push(lines[i]);
+            i += 1;
+          }
+          const token = `CARDTABLETOKEN${tables.length}`;
+          tables.push({ token, html: renderMarkdownTable(tableLines) });
+          if (out.length && out[out.length - 1] !== '') out.push('');
+          out.push(token, '');
+          continue;
+        }
+        out.push(lines[i]);
+        i += 1;
+      }
+
+      return { content: out.join('\n'), tables };
+    }
+
+    function restoreMarkdownTables(html = '', tables = []) {
+      return tables.reduce((nextHtml, table) => {
+        const tokenPattern = escapeRegExp(table.token);
+        return nextHtml
+          .replace(new RegExp(`<p>\\s*${tokenPattern}\\s*</p>`, 'g'), table.html)
+          .replace(new RegExp(tokenPattern, 'g'), table.html);
+      }, html);
+    }
+
+    function getMarkdownCardTargetFromHref(href = '') {
+      const cleanHref = String(href || '').replace(/\\([()])/g, '$1').split('#')[0].trim();
+      if (!cleanHref || !/\.md$/i.test(cleanHref)) return '';
+      const fileName = cleanHref.split('/').pop() || '';
+      if (!fileName) return '';
+      try {
+        return normalizeTitle(decodeURIComponent(fileName));
+      } catch (_) {
+        return normalizeTitle(fileName);
+      }
+    }
+
+    function buildInternalCardLinkElement(target, label = target) {
+      const span = document.createElement('span');
+      span.setAttribute('role', 'button');
+      span.setAttribute('tabindex', '0');
+      span.className = 'internal-card-link';
+      span.dataset.target = target;
+      span.textContent = `[${normalizeTitle(String(label || target))}]`;
+      return span;
+    }
+
+    function replaceWikiLinksInTextNode(textNode) {
+      const text = textNode.nodeValue || '';
+      const wikiLinkPattern = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g;
+      if (!wikiLinkPattern.test(text)) return;
+      wikiLinkPattern.lastIndex = 0;
+
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
+      let match;
+      while ((match = wikiLinkPattern.exec(text))) {
+        if (match.index > lastIndex) fragment.append(document.createTextNode(text.slice(lastIndex, match.index)));
+        const target = normalizeTitle(String(match[1] || '').trim());
+        if (target) fragment.append(buildInternalCardLinkElement(target, match[2] || target));
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < text.length) fragment.append(document.createTextNode(text.slice(lastIndex)));
+      textNode.replaceWith(fragment);
+    }
+
+    function enhanceRenderedMarkdownLinks(html = '') {
+      if (typeof document === 'undefined') return html;
+      const template = document.createElement('template');
+      template.innerHTML = html;
+
+      template.content.querySelectorAll('a[href]').forEach(anchor => {
+        const target = getMarkdownCardTargetFromHref(anchor.getAttribute('href') || '');
+        if (target) {
+          anchor.replaceWith(buildInternalCardLinkElement(target, anchor.textContent || target));
+          return;
+        }
+        anchor.classList.add('external-link');
+        anchor.setAttribute('target', '_blank');
+        anchor.setAttribute('rel', 'noopener noreferrer');
+      });
+
+      const linkedTextNodes = [];
+      const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          if (!/\[\[[^\]]+\]\]/.test(node.nodeValue || '')) return NodeFilter.FILTER_REJECT;
+          const parent = node.parentElement;
+          if (parent?.closest('a, code, pre, .internal-card-link')) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      while (walker.nextNode()) linkedTextNodes.push(walker.currentNode);
+      linkedTextNodes.forEach(replaceWikiLinksInTextNode);
+
+      return template.innerHTML;
+    }
+
+    function renderMarkdownFallback(content = '') {
       const normalized = String(content || '').replace(/\r\n?/g, '\n');
       const lines = normalized.split('\n');
       const blocks = [];
