@@ -412,13 +412,13 @@ function getNodeRadiusByType(node) {
     case 'question':
       return 15 + Math.min(12, degree * 1.1);
     case 'source':
-      // 資料卡也依連線數放大，但維持比概念卡/判斷卡更輕、更小
-      if (degree >= 12) return 20;
-      if (degree >= 9) return 17;
-      if (degree >= 6) return 14;
-      if (degree >= 4) return 11;
-      if (degree >= 2) return 8;
-      return 6;
+      // 資料卡維持較輕的視覺權重，但放大到足以穩定顯示標題。
+      if (degree >= 12) return 28;
+      if (degree >= 9) return 25;
+      if (degree >= 6) return 22;
+      if (degree >= 4) return 19;
+      if (degree >= 2) return 16;
+      return 14;
     default:
       return 12 + Math.min(14, degree * 1.2);
   }
@@ -884,7 +884,7 @@ function dedupeLinks(links) {
         .text(d => truncateLabel(d.title, getNodeRadius(d)))
         .attr('class', d => `node-label type-${d.type}`)
         .style('opacity', d => {
-          if (d.type === 'source') return getNodeRadius(d) >= 10 ? 0.75 : 0;
+          if (d.type === 'source') return 0.82;
           return getNodeRadius(d) >= 11 ? 1 : 0;
         });
 
