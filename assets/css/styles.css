@@ -915,6 +915,21 @@
       margin: 0 0 12px;
     }
 
+    .content-box ul,
+    .content-box ol {
+      padding-left: 1.45rem;
+    }
+
+    .content-box li {
+      margin: 4px 0;
+      line-height: 1.65;
+    }
+
+    .content-box li > ul,
+    .content-box li > ol {
+      margin: 4px 0 0;
+    }
+
     .content-box code {
       font-family: Consolas, Monaco, monospace;
       background: rgba(255,255,255,0.08);
