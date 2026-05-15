@@ -14,7 +14,7 @@
 <body>
   <div class="topbar">
     <div class="topbar-title">
-      <h1>卡片地圖</h1>
+      <div class="brand-row"><h1>卡片地圖</h1><button id="openTopicBoardBtn" class="topic-board-top-btn" type="button">主題白板</button></div>
     </div>
     <div class="topbar-actions">
       <div class="topbar-search">
@@ -125,6 +125,7 @@
             </label>
             <span>鄰近</span>
           </div>
+          <button id="exitTopicBoardBtn" class="chip topic-board-exit hidden" type="button">返回完整卡片庫</button>
         </div>
         <svg id="graphSvg"></svg>
         <div id="graphContextMenu" class="graph-context-menu hidden" role="menu" aria-hidden="true">
@@ -201,6 +202,41 @@
     </div>
   </div>
 
+
+  <div class="modal" id="topicBoardModal">
+    <div class="modal-card topic-board-modal-card">
+      <div class="modal-top">
+        <div>
+          <h3>主題白板</h3>
+          <div class="muted">輸入主題與描述後，AI 會選出語意相關卡片、判斷卡片關係，並整理立場與知識缺環。</div>
+        </div>
+        <div class="modal-actions">
+          <button id="closeTopicBoardModalBtn" class="ghost">關閉</button>
+        </div>
+      </div>
+      <div class="topic-board-form">
+        <label for="topicBoardTitleInput">主題</label>
+        <input id="topicBoardTitleInput" type="text" placeholder="例如：AI 對知識工作的影響" />
+        <label for="topicBoardDescInput">描述</label>
+        <textarea id="topicBoardDescInput" placeholder="補充你想分析的角度、範圍或問題。"></textarea>
+        <div class="topic-board-options">
+          <div>
+            <label for="geminiApiKeyInput">Gemini API Key（可選）</label>
+            <input id="geminiApiKeyInput" type="password" placeholder="未填時使用本機語意演算法；也可設定 window.GEMINI_API_KEY" />
+          </div>
+          <div>
+            <label for="geminiModelInput">模型</label>
+            <input id="geminiModelInput" type="text" value="gemini-3.1-pro" />
+          </div>
+        </div>
+        <div class="btn-row topic-board-actions">
+          <button id="generateTopicBoardBtn" class="primary">生成主題白板</button>
+          <button id="topicBoardUseLocalBtn" type="button">不用 API，本機生成</button>
+        </div>
+        <div id="topicBoardStatus" class="hint">白板會暫時隱藏完整卡片庫，只呈現與主題有關的知識網絡。</div>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="assets/js/app.js"></script>
 

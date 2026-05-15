@@ -24,6 +24,7 @@ function initGraph() {
       state.gLinks = state.gRoot.append('g').attr('class', 'links');
       state.gNodes = state.gRoot.append('g').attr('class', 'nodes');
       state.gArrows = state.gRoot.append('g').attr('class', 'arrows');
+      state.gLinkLabels = state.gRoot.append('g').attr('class', 'link-labels');
 
       state.zoom = d3.zoom()
         .filter((event) => {
@@ -381,6 +382,7 @@ function parseCardType(content) {
 }
 
 function getVisibleLinks(links, nodeMap) {
+  if (state.topicBoard?.active) return links;
   // 只有問題卡隱藏連線；其他卡片照常顯示由 [[其他卡片]] 建立的連線
   return links.filter(link => {
     const s = nodeMap.get(sourceId(link));
@@ -568,6 +570,7 @@ function parseCards(files) {
   state.centerNodeId = null;
   state.localGraphRootId = null;
   state.currentMode = 'global';
+  resetTopicBoardState(false);
 
   applyFiltersAndRender();
   updateStats();
@@ -729,7 +732,12 @@ function dedupeLinks(links) {
       let baseNodes = state.nodes;
       let baseLinks = state.links;
 
-      if (state.currentMode === 'local' && state.localGraphRootId) {
+      if (state.topicBoard.active) {
+        const selected = new Set(state.topicBoard.selectedIds || []);
+        baseNodes = state.nodes.filter(node => selected.has(node.id));
+        baseLinks = (state.topicBoard.relations || [])
+          .filter(link => selected.has(sourceId(link)) && selected.has(targetId(link)));
+      } else if (state.currentMode === 'local' && state.localGraphRootId) {
         const depth = Number(els.localDepth.value);
         const local = buildLocalGraph(state.localGraphRootId, depth);
         baseNodes = local.nodes;
@@ -799,6 +807,7 @@ function dedupeLinks(links) {
         .filter(l => activeNodeMap.has(sourceId(l)) && activeNodeMap.has(targetId(l)));
       const resolvedVisibleLinks = resolveLinksToActiveNodes(visibleLinks, activeNodeMap);
       const displayLinks = buildDisplayLinks(resolvedVisibleLinks, state.currentMode === 'local');
+      const showSemanticLabels = state.topicBoard.active;
       const staticLocalMode = state.currentMode === 'local';
 
       if (state.simulation) {
@@ -815,8 +824,8 @@ function dedupeLinks(links) {
         .selectAll('line.link-line')
         .data(displayLinks, d => d.key || `${sourceId(d)}=>${targetId(d)}`)
         .join('line')
-        .attr('class', 'link-line')
-        .attr('stroke-width', d => d.mutual ? 3.2 : 1.2)
+        .attr('class', d => `link-line${d.kind === 'semantic' ? ' semantic-link' : ''}`)
+        .attr('stroke-width', d => d.kind === 'semantic' ? 2.2 : (d.mutual ? 3.2 : 1.2))
         .attr('marker-end', null);
 
       const arrowSel = state.gArrows
@@ -877,8 +886,16 @@ function dedupeLinks(links) {
           hideTooltip();
         });
 
+      const labelSel = state.gLinkLabels
+        .selectAll('text.link-label')
+        .data(showSemanticLabels ? displayLinks.filter(d => d.relation) : [], d => d.key || `${sourceId(d)}=>${targetId(d)}`)
+        .join('text')
+        .attr('class', 'link-label')
+        .text(d => d.relation);
+
       state.gLinks.raise();
       state.gArrows.raise();
+      state.gLinkLabels.raise();
 
       nodeSel.select('text')
         .text(d => truncateLabel(d.title, getNodeRadius(d)))
@@ -913,6 +930,16 @@ function dedupeLinks(links) {
             const a = sourceId(d);
             const b = targetId(d);
             return (a === state.selectedNodeId || b === state.selectedNodeId) ? 0.98 : 0.55;
+          });
+
+        labelSel
+          .attr('x', d => (getLinkEndpoints(d).x1 + getLinkEndpoints(d).x2) / 2)
+          .attr('y', d => (getLinkEndpoints(d).y1 + getLinkEndpoints(d).y2) / 2)
+          .attr('opacity', d => {
+            if (!state.selectedNodeId) return 0.92;
+            const a = sourceId(d);
+            const b = targetId(d);
+            return (a === state.selectedNodeId || b === state.selectedNodeId) ? 1 : 0.62;
           });
 
         nodeSel.attr('transform', d => `translate(${d.x},${d.y})`);
@@ -2082,6 +2109,325 @@ function openCardModal(nodeId) {
       els.linkStatsModal?.classList.remove('show');
     }
 
+
+    function resetTopicBoardState(shouldRender = true) {
+      state.topicBoard = {
+        active: false,
+        topic: '',
+        description: '',
+        subitems: [],
+        selectedIds: [],
+        relations: [],
+        stanceSummary: '',
+        knowledgeGaps: [],
+        retrievalNotes: [],
+      };
+      els.exitTopicBoardBtn?.classList.add('hidden');
+      document.body.classList.remove('topic-board-active');
+      if (shouldRender) {
+        applyFiltersAndRender();
+        els.detailPanel.innerHTML = '<div class="empty">已返回完整卡片庫。點擊圖上的節點即可在右欄查看內容。</div>';
+      }
+    }
+
+    function openTopicBoardModal() {
+      els.topicBoardModal?.classList.add('show');
+      if (!els.topicBoardTitleInput?.value && state.selectedNodeId) {
+        const node = state.nodeMap.get(state.selectedNodeId);
+        if (node) els.topicBoardTitleInput.value = node.title || '';
+      }
+      setTimeout(() => els.topicBoardTitleInput?.focus(), 0);
+    }
+
+    function closeTopicBoardModal() {
+      els.topicBoardModal?.classList.remove('show');
+    }
+
+    function setTopicBoardStatus(message, busy = false) {
+      if (!els.topicBoardStatus) return;
+      els.topicBoardStatus.textContent = message;
+      els.topicBoardStatus.classList.toggle('topic-board-busy', busy);
+    }
+
+    function normalizeAnalysisText(text = '') {
+      return String(text || '')
+        .replace(/^---[\s\S]*?---\n?/, ' ')
+        .replace(/```[\s\S]*?```/g, ' ')
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+        .replace(/\[([^\]\n]+)\]\((.+?)\)/g, '$1')
+        .replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g, (_, target, alias) => alias || target)
+        .replace(/[#>*_`|~\-:：，。！？、；；（）()\[\]{}]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function getCardAnalysisText(node) {
+      return normalizeAnalysisText([node.title, ...(node.tags || []), node.content || node.rawContent || ''].join(' '));
+    }
+
+    function extractTopicTerms(...parts) {
+      const text = normalizeAnalysisText(parts.join(' ')).toLowerCase();
+      const terms = new Set();
+      (text.match(/[a-z0-9][a-z0-9_\-]{2,}/gi) || []).forEach(term => terms.add(term.toLowerCase()));
+      (text.match(/[\p{Script=Han}]{2,8}/gu) || []).forEach(chunk => {
+        if (chunk.length <= 4) terms.add(chunk);
+        for (let i = 0; i < chunk.length - 1; i += 1) terms.add(chunk.slice(i, i + 2));
+        for (let i = 0; i < chunk.length - 2; i += 1) terms.add(chunk.slice(i, i + 3));
+      });
+      return [...terms].filter(term => term.length >= 2);
+    }
+
+    function scoreCardForTopic(node, terms) {
+      const title = normalizeAnalysisText(node.title || '').toLowerCase();
+      const tags = (node.tags || []).join(' ').toLowerCase();
+      const content = getCardAnalysisText(node).toLowerCase();
+      let score = 0;
+      terms.forEach(term => {
+        if (title.includes(term)) score += 8;
+        if (tags.includes(term)) score += 5;
+        if (content.includes(term)) score += 1.8;
+      });
+      const titleTerms = extractTopicTerms(node.title || '');
+      const overlap = titleTerms.filter(term => terms.includes(term)).length;
+      score += overlap * 3;
+      score += Math.min(4, ((node.citeCount || 0) + (node.refCount || 0)) * 0.35);
+      return score;
+    }
+
+    function generateLocalSubitems(topic, description, cards = state.nodes) {
+      const baseTerms = extractTopicTerms(topic, description)
+        .filter(term => term.length >= 2 && !/^\d+$/.test(term));
+      const freq = new Map();
+      cards.slice(0, 80).forEach(card => {
+        extractTopicTerms(card.title || '', (card.tags || []).join(' ')).forEach(term => {
+          if (baseTerms.some(base => term.includes(base) || base.includes(term))) return;
+          freq.set(term, (freq.get(term) || 0) + 1);
+        });
+      });
+      const related = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([term]) => term);
+      return [...new Set([...baseTerms.slice(0, 6), ...related])].slice(0, 10);
+    }
+
+    function selectCardsLocally(topic, description, subitems) {
+      const terms = extractTopicTerms(topic, description, ...(subitems || []));
+      const scored = state.nodes
+        .map(node => ({ node, score: scoreCardForTopic(node, terms) }))
+        .sort((a, b) => b.score - a.score);
+      const positive = scored.filter(item => item.score > 0).slice(0, 18);
+      if (positive.length >= 5) return positive;
+      return scored.slice(0, Math.min(12, scored.length));
+    }
+
+    function inferLocalRelation(source, target) {
+      const s = getCardAnalysisText(source).toLowerCase();
+      const t = getCardAnalysisText(target).toLowerCase();
+      const reverseLink = (target.links || []).some(link => normalizeLinkKey(link) === normalizeLinkKey(source.title) || normalizeLinkKey(link) === normalizeLinkKey(source.id));
+      const forwardLink = (source.links || []).some(link => normalizeLinkKey(link) === normalizeLinkKey(target.title) || normalizeLinkKey(link) === normalizeLinkKey(target.id));
+      if (forwardLink || reverseLink) return '引用';
+      if (/(反對|對立|矛盾|批判|風險|限制|問題|但是|然而)/.test(s + t)) return '對立';
+      if (/(導致|造成|因為|所以|影響|驅動|結果)/.test(s + t)) return '因果';
+      if (/(例子|案例|例如|補充|延伸|支持|證據)/.test(s + t)) return '補充';
+      return '相關';
+    }
+
+    function buildLocalRelations(selectedItems) {
+      const nodes = selectedItems.map(item => item.node);
+      const links = [];
+      const seen = new Set();
+      state.links.forEach(link => {
+        const sId = sourceId(link);
+        const tId = targetId(link);
+        if (!nodes.some(n => n.id === sId) || !nodes.some(n => n.id === tId)) return;
+        const key = `${sId}=>${tId}`;
+        seen.add(key);
+        links.push({ source: sId, target: tId, kind: 'semantic', relation: '引用', rationale: '原卡片連結' });
+      });
+      for (let i = 0; i < nodes.length; i += 1) {
+        for (let j = i + 1; j < nodes.length; j += 1) {
+          if (links.length >= Math.max(10, nodes.length * 1.35)) break;
+          const a = nodes[i];
+          const b = nodes[j];
+          const key = `${a.id}=>${b.id}`;
+          const reverseKey = `${b.id}=>${a.id}`;
+          if (seen.has(key) || seen.has(reverseKey)) continue;
+          const termsA = extractTopicTerms(getCardAnalysisText(a));
+          const termsB = extractTopicTerms(getCardAnalysisText(b));
+          const overlap = termsA.filter(term => termsB.includes(term)).length;
+          if (overlap < 2 && Math.abs((selectedItems[i].score || 0) - (selectedItems[j].score || 0)) > 10) continue;
+          seen.add(key);
+          links.push({ source: a.id, target: b.id, kind: 'semantic', relation: inferLocalRelation(a, b), rationale: '語意相近' });
+        }
+      }
+      return links;
+    }
+
+    function buildLocalTopicBoard(topic, description) {
+      const subitems = generateLocalSubitems(topic, description);
+      const selectedItems = selectCardsLocally(topic, description, subitems);
+      const selectedIds = selectedItems.map(item => item.node.id);
+      const relations = buildLocalRelations(selectedItems);
+      const coveredTerms = new Set();
+      selectedItems.forEach(item => extractTopicTerms(item.node.title, item.node.content).forEach(term => coveredTerms.add(term)));
+      const gaps = subitems
+        .filter(item => !extractTopicTerms(item).some(term => coveredTerms.has(term)))
+        .map(item => `缺少直接討論「${item}」的卡片`)
+        .slice(0, 6);
+      if (!gaps.length && selectedIds.length < 5) gaps.push('相關卡片數偏少，建議補充更多直接處理此主題的資料卡或判斷卡。');
+      return {
+        subitems,
+        selectedIds,
+        relations,
+        stanceSummary: selectedItems.length
+          ? `本機分析選出 ${selectedItems.length} 張卡片。高分卡片多半圍繞「${subitems.slice(0, 4).join('、')}」；請檢視連線標籤來確認引用、補充、因果或對立關係。`
+          : '目前卡片庫沒有足夠內容可支撐此主題分析。',
+        knowledgeGaps: gaps.length ? gaps : ['尚未偵測到明顯缺環；可再加入反例、證據與應用場景卡片讓分析更完整。'],
+        retrievalNotes: selectedItems.map(item => `${item.node.title}（分數 ${item.score.toFixed(1)}）`).slice(0, 10),
+      };
+    }
+
+    function extractJsonObject(text = '') {
+      const cleaned = String(text || '').replace(/```json|```/gi, '').trim();
+      const start = cleaned.indexOf('{');
+      const end = cleaned.lastIndexOf('}');
+      if (start < 0 || end <= start) throw new Error('AI 回傳內容不是 JSON。');
+      return JSON.parse(cleaned.slice(start, end + 1));
+    }
+
+    async function callGeminiTopicBoard(topic, description) {
+      const apiKey = (els.geminiApiKeyInput?.value || window.GEMINI_API_KEY || '').trim();
+      if (!apiKey) return null;
+      const model = (els.geminiModelInput?.value || window.GEMINI_MODEL || 'gemini-3.1-pro').trim();
+      const cardBriefs = state.nodes.slice(0, 120).map(node => ({
+        id: node.id,
+        title: node.title,
+        type: state.typeConfig[node.type]?.label || node.type,
+        tags: node.tags || [],
+        excerpt: getNodePreviewText(node),
+      }));
+      const prompt = `你是知識管理白板分析器。請只回傳 JSON，不要 Markdown。\n主題：${topic}\n描述：${description}\n卡片清單：${JSON.stringify(cardBriefs)}\n請完成：1 生成 5-10 個語意相關子項；2 選出語意相關卡片，包含沒有出現關鍵字但概念接近者；3 判斷卡片關係（因果、對立、補充、引用、例證、前提、延伸等）；4 總結不同卡片對主題的立場；5 找出知識缺環。JSON schema: {"subitems":[string],"selectedIds":[string],"relations":[{"source":"card id","target":"card id","relation":"關係","rationale":"理由"}],"stanceSummary":"string","knowledgeGaps":[string],"retrievalNotes":[string]}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json' } }),
+      });
+      if (!res.ok) throw new Error(`Gemini API 回應 ${res.status}`);
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('\n') || '';
+      const parsed = extractJsonObject(text);
+      return {
+        subitems: Array.isArray(parsed.subitems) ? parsed.subitems.slice(0, 10) : [],
+        selectedIds: Array.isArray(parsed.selectedIds) ? parsed.selectedIds.filter(id => state.nodeMap.has(id)).slice(0, 24) : [],
+        relations: Array.isArray(parsed.relations) ? parsed.relations.map(link => ({
+          source: link.source,
+          target: link.target,
+          kind: 'semantic',
+          relation: String(link.relation || '相關').slice(0, 8),
+          rationale: link.rationale || '',
+        })).filter(link => state.nodeMap.has(link.source) && state.nodeMap.has(link.target) && link.source !== link.target).slice(0, 36) : [],
+        stanceSummary: parsed.stanceSummary || '',
+        knowledgeGaps: Array.isArray(parsed.knowledgeGaps) ? parsed.knowledgeGaps.slice(0, 8) : [],
+        retrievalNotes: Array.isArray(parsed.retrievalNotes) ? parsed.retrievalNotes.slice(0, 10) : [],
+      };
+    }
+
+    function renderTopicBoardDetail() {
+      const board = state.topicBoard;
+      const selectedCards = (board.selectedIds || []).map(id => state.nodeMap.get(id)).filter(Boolean);
+      els.detailPanel.innerHTML = `
+        <section class="topic-board-detail">
+          <div class="detail-header-row">
+            <div>
+              <div class="detail-kicker">主題白板</div>
+              <h2>${escapeHtml(board.topic || '未命名主題')}</h2>
+            </div>
+            <button id="detailExitTopicBoardBtn" class="ghost">返回卡片庫</button>
+          </div>
+          ${board.description ? `<p class="topic-board-desc">${escapeHtml(board.description)}</p>` : ''}
+          <div class="topic-board-section">
+            <h3>AI 語意子項</h3>
+            <div class="topic-subitems">${(board.subitems || []).map(item => `<span>${escapeHtml(item)}</span>`).join('') || '<span>尚無子項</span>'}</div>
+          </div>
+          <div class="topic-board-section">
+            <h3>邏輯對齊</h3>
+            <p>${escapeHtml(board.stanceSummary || '尚無分析摘要。')}</p>
+          </div>
+          <div class="topic-board-section">
+            <h3>知識缺環</h3>
+            <ul>${(board.knowledgeGaps || []).map(gap => `<li>${escapeHtml(gap)}</li>`).join('') || '<li>尚未偵測到明顯缺環。</li>'}</ul>
+          </div>
+          <div class="topic-board-section">
+            <h3>調出的卡片</h3>
+            <div class="topic-card-list">${selectedCards.map(card => `<button class="topic-card-pill" data-node-id="${escapeAttr(card.id)}">${escapeHtml(card.title)}</button>`).join('') || '<div class="empty">沒有選出卡片。</div>'}</div>
+          </div>
+          <div class="topic-board-section">
+            <h3>檢索線索</h3>
+            <ul>${(board.retrievalNotes || []).map(note => `<li>${escapeHtml(note)}</li>`).join('') || '<li>未提供檢索線索。</li>'}</ul>
+          </div>
+        </section>`;
+      document.getElementById('detailExitTopicBoardBtn')?.addEventListener('click', () => resetTopicBoardState(true));
+      els.detailPanel.querySelectorAll('.topic-card-pill').forEach(btn => {
+        btn.addEventListener('click', () => selectNode(btn.dataset.nodeId, false));
+      });
+    }
+
+    function activateTopicBoard(topic, description, board) {
+      const selectedIds = (board.selectedIds || []).filter(id => state.nodeMap.has(id));
+      const fallback = !selectedIds.length ? buildLocalTopicBoard(topic, description) : null;
+      const next = fallback || board;
+      state.topicBoard = {
+        active: true,
+        topic,
+        description,
+        subitems: next.subitems || [],
+        selectedIds: (next.selectedIds || []).filter(id => state.nodeMap.has(id)),
+        relations: (next.relations || []).filter(link => state.nodeMap.has(sourceId(link)) && state.nodeMap.has(targetId(link))),
+        stanceSummary: next.stanceSummary || '',
+        knowledgeGaps: next.knowledgeGaps || [],
+        retrievalNotes: next.retrievalNotes || [],
+      };
+      state.currentMode = 'global';
+      state.localGraphRootId = null;
+      state.selectedNodeId = null;
+      document.body.classList.add('topic-board-active');
+      els.exitTopicBoardBtn?.classList.remove('hidden');
+      applyFiltersAndRender();
+      renderTopicBoardDetail();
+      closeTopicBoardModal();
+    }
+
+    async function generateTopicBoard(useLocalOnly = false) {
+      const topic = String(els.topicBoardTitleInput?.value || '').trim();
+      const description = String(els.topicBoardDescInput?.value || '').trim();
+      if (!topic) {
+        setTopicBoardStatus('請先輸入主題。');
+        els.topicBoardTitleInput?.focus();
+        return;
+      }
+      if (!state.nodes.length) {
+        setTopicBoardStatus('請先匯入或讀取卡片庫。');
+        return;
+      }
+      const btn = els.generateTopicBoardBtn;
+      if (btn) btn.disabled = true;
+      setTopicBoardStatus(useLocalOnly ? '正在用本機語意演算法生成白板…' : '正在呼叫 Gemini 3.1 生成白板；若未填 API Key 會自動改用本機演算法…', true);
+      try {
+        let board = null;
+        if (!useLocalOnly) board = await callGeminiTopicBoard(topic, description);
+        if (!board) board = buildLocalTopicBoard(topic, description);
+        activateTopicBoard(topic, description, board);
+        setTopicBoardStatus('白板已生成。');
+      } catch (error) {
+        console.warn('Gemini 主題白板生成失敗，改用本機演算法：', error);
+        const board = buildLocalTopicBoard(topic, description);
+        activateTopicBoard(topic, description, board);
+        setTopicBoardStatus(`Gemini 呼叫失敗，已改用本機演算法：${error?.message || error}`);
+      } finally {
+        if (btn) btn.disabled = false;
+        setTopicBoardStatus('白板會暫時隱藏完整卡片庫，只呈現與主題有關的知識網絡。');
+      }
+    }
+
     function clearAll() {
       state.rawCards = [];
       state.nodes = [];
@@ -2112,6 +2458,8 @@ function openCardModal(nodeId) {
       state.gLinks.selectAll('*').remove();
       state.gNodes.selectAll('*').remove();
       state.gArrows.selectAll('*').remove();
+      state.gLinkLabels?.selectAll('*').remove();
+      resetTopicBoardState(false);
     }
 
     async function readFilesFromInput(fileList) {
@@ -3183,6 +3531,14 @@ function openCardModal(nodeId) {
         e.target.value = '';
       });
 
+      els.openTopicBoardBtn?.addEventListener('click', openTopicBoardModal);
+      els.exitTopicBoardBtn?.addEventListener('click', () => resetTopicBoardState(true));
+      els.closeTopicBoardModalBtn?.addEventListener('click', closeTopicBoardModal);
+      els.topicBoardModal?.addEventListener('click', (e) => {
+        if (e.target === els.topicBoardModal) closeTopicBoardModal();
+      });
+      els.generateTopicBoardBtn?.addEventListener('click', () => generateTopicBoard(false));
+      els.topicBoardUseLocalBtn?.addEventListener('click', () => generateTopicBoard(true));
       els.openSettingsBtn.addEventListener('click', toggleSidebar);
       els.closeSettingsBtn.addEventListener('click', closeSidebar);
       els.sidebarBackdrop.addEventListener('click', closeSidebar);
@@ -3214,6 +3570,7 @@ function openCardModal(nodeId) {
           closeSidebar();
           closeSearchModal();
           closeCardListModal();
+          closeTopicBoardModal();
         }
       });
 
