@@ -957,6 +957,11 @@
       color: var(--muted);
     }
 
+    .content-box .md-table-wrap {
+      display: block;
+      max-width: 100%;
+    }
+
     .md-table-wrap {
       overflow: auto;
       border: 1px solid rgba(255,255,255,0.08);

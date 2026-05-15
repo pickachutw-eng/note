@@ -2193,12 +2193,50 @@ function openCardModal(nodeId) {
       const md = getMarkdownItRenderer();
       if (md) {
         try {
-          return enhanceRenderedMarkdownLinks(md.render(normalized));
+          const extracted = extractMarkdownTables(normalized);
+          const rendered = enhanceRenderedMarkdownLinks(md.render(extracted.content));
+          return restoreMarkdownTables(rendered, extracted.tables);
         } catch (error) {
           console.warn('markdown-it 渲染失敗，改用內建簡易渲染器：', error);
         }
       }
       return renderMarkdownFallback(normalized);
+    }
+
+    function extractMarkdownTables(content = '') {
+      const lines = String(content || '').split('\n');
+      const out = [];
+      const tables = [];
+      let i = 0;
+
+      while (i < lines.length) {
+        if (isMarkdownTable(lines, i)) {
+          const tableLines = [lines[i], lines[i + 1]];
+          i += 2;
+          while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+            tableLines.push(lines[i]);
+            i += 1;
+          }
+          const token = `CARDTABLETOKEN${tables.length}`;
+          tables.push({ token, html: renderMarkdownTable(tableLines) });
+          if (out.length && out[out.length - 1] !== '') out.push('');
+          out.push(token, '');
+          continue;
+        }
+        out.push(lines[i]);
+        i += 1;
+      }
+
+      return { content: out.join('\n'), tables };
+    }
+
+    function restoreMarkdownTables(html = '', tables = []) {
+      return tables.reduce((nextHtml, table) => {
+        const tokenPattern = escapeRegExp(table.token);
+        return nextHtml
+          .replace(new RegExp(`<p>\\s*${tokenPattern}\\s*</p>`, 'g'), table.html)
+          .replace(new RegExp(tokenPattern, 'g'), table.html);
+      }, html);
     }
 
     function getMarkdownCardTargetFromHref(href = '') {
