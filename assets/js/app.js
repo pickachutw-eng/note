@@ -3076,6 +3076,61 @@ function openCardModal(nodeId) {
       }
     }
 
+    function formatExportDate(now = new Date()) {
+      const pad = (num) => String(num).padStart(2, '0');
+      return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    }
+
+    async function exportFirebaseCardsZip() {
+      const btn = els.exportFirebaseZipBtn;
+      if (!btn) return;
+      const oldText = btn.textContent;
+
+      try {
+        if (!window.JSZip) throw new Error('JSZip 尚未載入，請重新整理頁面後再試。');
+        btn.disabled = true;
+        btn.textContent = '匯出中…';
+
+        const db = getFirebaseDatabase();
+        const snapshot = await db.ref(FIREBASE_CARDS_PATH).once('value');
+        const data = snapshot.val();
+        const files = normalizeFirebaseCards(data);
+        if (!files.length) {
+          alert(`Firebase 路徑 /${FIREBASE_CARDS_PATH} 沒有可匯出的卡片資料。`);
+          return;
+        }
+
+        const zip = new window.JSZip();
+        files.forEach((file) => {
+          const safePath = String(file.webkitRelativePath || file.name || 'untitled.md')
+            .replace(/^\/+/, '')
+            .replace(/\.\.(\/|\\)/g, '')
+            .trim() || 'untitled.md';
+          zip.file(safePath, String(file.content || ''), { binary: false });
+        });
+
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const timestamp = formatExportDate();
+        const fileName = `firebase-cards-${timestamp}.zip`;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+
+        alert(`已匯出 ${files.length} 張卡片為 ${fileName}`);
+      } catch (error) {
+        console.error('匯出 Firebase 卡片 ZIP 失敗：', error);
+        alert(`匯出 Firebase 卡片 ZIP 失敗：${error?.message || error}`);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = oldText;
+      }
+    }
+
     function escapeHtml(str = '') {
       return str
         .replace(/&/g, '&amp;')
@@ -3218,6 +3273,7 @@ function openCardModal(nodeId) {
       });
 
       els.loadDemoBtn.addEventListener('click', loadFirebaseCards);
+      els.exportFirebaseZipBtn?.addEventListener('click', exportFirebaseCardsZip);
       els.clearBtn.addEventListener('click', clearAll);
 
       els.searchInput.addEventListener('input', (e) => {
