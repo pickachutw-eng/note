@@ -6,6 +6,7 @@
   <title>卡片地圖 Prototype</title>
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
   <link rel="stylesheet" href="assets/css/styles.css" />
@@ -44,6 +45,7 @@
           <div class="btn-row">
             <label class="file-label primary" for="folderInput">選取資料夾</label>
             <button id="loadDemoBtn">顯示 Firebase 卡片庫</button>
+            <button id="exportFirebaseZipBtn">匯出 Firebase 卡片 ZIP</button>
             <button id="clearBtn" class="danger">清空</button>
           </div>
           <input id="folderInput" class="file-input" type="file" webkitdirectory directory multiple accept=".md,text/markdown" />

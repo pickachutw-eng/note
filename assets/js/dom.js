@@ -1,6 +1,7 @@
 export const els = {
       folderInput: document.getElementById('folderInput'),
       loadDemoBtn: document.getElementById('loadDemoBtn'),
+      exportFirebaseZipBtn: document.getElementById('exportFirebaseZipBtn'),
       clearBtn: document.getElementById('clearBtn'),
       searchInput: document.getElementById('searchInput'),
       filterMode: document.getElementById('filterMode'),
