@@ -21,6 +21,7 @@ export const state = {
       gLinks: null,
       gNodes: null,
       gArrows: null,
+      gLinkLabels: null,
       rightClickMenu: {
         start: null,
         point: null,
@@ -42,6 +43,17 @@ export const state = {
         linkDistance: 90,
         centerStrength: 0.08,
         collisionScale: 1.6,
+      },
+      topicBoard: {
+        active: false,
+        topic: '',
+        description: '',
+        subitems: [],
+        selectedIds: [],
+        relations: [],
+        stanceSummary: '',
+        knowledgeGaps: [],
+        retrievalNotes: [],
       },
       typeConfig: {
         concept: { label: '概念卡', orbit: 'Anchor' },
